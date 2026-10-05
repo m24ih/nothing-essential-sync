@@ -1,6 +1,6 @@
 // ==============================================================================
 // Nothing Essential Sync - WebUI Logic
-// Works with KernelSU, APatch, and MMRL (Magisk)
+// Official KernelSU / APatch / MMRL Async Callback Bridge
 // ==============================================================================
 
 const CONFIG_PATH = "/data/adb/essential-sync/config.env";
@@ -8,29 +8,53 @@ const STATE_PATH = "/data/adb/essential-sync/last_sync_time.txt";
 const LOG_PATH = "/data/adb/essential-sync/sync.log";
 const SYNC_SCRIPT = "/data/adb/essential-sync/sync.sh";
 
-// Root Execution Bridge
-async function exec(cmd) {
-    try {
-        if (window.ksu && typeof window.ksu.exec === 'function') {
-            return await window.ksu.exec(cmd);
-        } else if (window.mmrl && typeof window.mmrl.exec === 'function') {
-            return await window.mmrl.exec(cmd);
-        } else {
-            console.log("[PREVIEW MODE] Command:", cmd);
-            return { errno: 0, stdout: "Mock output (preview mode)", stderr: "" };
+let callbackCounter = 0;
+function getUniqueCallbackName(prefix) {
+    return `${prefix}_cb_${Date.now()}_${callbackCounter++}`;
+}
+
+// Official KernelSU / MMRL Execution Bridge
+function exec(command, options = {}) {
+    return new Promise((resolve) => {
+        const callbackName = getUniqueCallbackName("exec");
+
+        // Callback invoked by Android native layer: window[callbackName](errno, stdout, stderr)
+        window[callbackName] = (errno, stdout, stderr) => {
+            delete window[callbackName];
+            resolve({
+                errno: typeof errno === 'number' ? errno : 0,
+                stdout: stdout || "",
+                stderr: stderr || ""
+            });
+        };
+
+        try {
+            if (window.ksu && typeof window.ksu.exec === 'function') {
+                window.ksu.exec(command, JSON.stringify(options), callbackName);
+            } else if (window.mmrl && typeof window.mmrl.exec === 'function') {
+                window.mmrl.exec(command, JSON.stringify(options), callbackName);
+            } else {
+                delete window[callbackName];
+                resolve({ errno: 0, stdout: "Preview mode (no root bridge)", stderr: "" });
+            }
+        } catch (err) {
+            delete window[callbackName];
+            resolve({ errno: -1, stdout: "", stderr: String(err) });
         }
-    } catch (err) {
-        console.error("Exec error:", err);
-        return { errno: -1, stdout: "", stderr: String(err) };
-    }
+    });
 }
 
 // Toast Notification
 function showToast(msg) {
+    if (window.ksu && typeof window.ksu.toast === 'function') {
+        try { window.ksu.toast(msg); } catch(e) {}
+    }
     const toast = document.getElementById("toast");
-    toast.textContent = msg;
-    toast.classList.remove("hidden");
-    setTimeout(() => toast.classList.add("hidden"), 2500);
+    if (toast) {
+        toast.textContent = msg;
+        toast.classList.remove("hidden");
+        setTimeout(() => toast.classList.add("hidden"), 2500);
+    }
 }
 
 // Tab Switching
@@ -41,7 +65,8 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 
         btn.classList.add("active");
         const target = btn.getAttribute("data-tab");
-        document.getElementById(`tab-${target}`).classList.add("active");
+        const content = document.getElementById(`tab-${target}`);
+        if (content) content.classList.add("active");
 
         if (target === "settings") {
             loadConfig();
@@ -72,8 +97,8 @@ async function refreshDashboard() {
         badge.textContent = "STOPPED";
     }
 
-    // 2. config.env'den not yolunu al ve not sayısını say
-    const cfgRes = await exec(`[ -f "${CONFIG_PATH}" ] && cat "${CONFIG_PATH}"`);
+    // 2. config.env'den not yolunu oku
+    const cfgRes = await exec(`cat "${CONFIG_PATH}" 2>/dev/null`);
     let notesDir = "/storage/emulated/0/Sync/Obsidian-Vaults/Personal-Obsidian/00-Zettelkasten";
     if (cfgRes.stdout) {
         const match = cfgRes.stdout.match(/DEST_NOTES=["']?([^"'\n]+)/);
@@ -84,7 +109,7 @@ async function refreshDashboard() {
     statCount.textContent = countRes.stdout ? countRes.stdout.trim() : "0";
 
     // 3. Son sync zamanını oku
-    const timeRes = await exec(`[ -f "${STATE_PATH}" ] && cat "${STATE_PATH}"`);
+    const timeRes = await exec(`cat "${STATE_PATH}" 2>/dev/null`);
     if (timeRes.stdout && timeRes.stdout.trim().length > 5) {
         const ms = parseInt(timeRes.stdout.trim(), 10);
         if (!isNaN(ms)) {
@@ -98,14 +123,14 @@ async function refreshDashboard() {
     }
 
     // 4. Log akışını oku (Son 25 satır)
-    const logRes = await exec(`[ -f "${LOG_PATH}" ] && tail -n 25 "${LOG_PATH}"`);
+    const logRes = await exec(`tail -n 25 "${LOG_PATH}" 2>/dev/null`);
     consoleBox.textContent = logRes.stdout ? logRes.stdout.trim() : "No log entries yet.";
     consoleBox.scrollTop = consoleBox.scrollHeight;
 }
 
 // Load Settings
 async function loadConfig() {
-    const res = await exec(`[ -f "${CONFIG_PATH}" ] && cat "${CONFIG_PATH}"`);
+    const res = await exec(`cat "${CONFIG_PATH}" 2>/dev/null`);
     if (!res.stdout) return;
 
     const lines = res.stdout.split("\n");
@@ -114,16 +139,29 @@ async function loadConfig() {
         if (!key || !val) return;
         const cleanVal = val.replace(/["']/g, "").trim();
 
-        if (key === "DEST_NOTES") document.getElementById("input-notes").value = cleanVal;
-        if (key === "DEST_ATTACHMENTS") document.getElementById("input-attachments").value = cleanVal;
-        if (key === "TIME_FORMAT") document.getElementById("select-format").value = cleanVal;
-        if (key === "NOTE_TAG") document.getElementById("input-tag").value = cleanVal;
+        if (key === "DEST_NOTES") {
+            const el = document.getElementById("input-notes");
+            if (el) el.value = cleanVal;
+        }
+        if (key === "DEST_ATTACHMENTS") {
+            const el = document.getElementById("input-attachments");
+            if (el) el.value = cleanVal;
+        }
+        if (key === "TIME_FORMAT") {
+            const el = document.getElementById("select-format");
+            if (el) el.value = cleanVal;
+        }
+        if (key === "NOTE_TAG") {
+            const el = document.getElementById("input-tag");
+            if (el) el.value = cleanVal;
+        }
     });
 }
 
 // Scan Vaults
 async function scanVaults() {
     const select = document.getElementById("select-vault");
+    if (!select) return;
     select.innerHTML = '<option value="">Scanning vaults...</option>';
 
     const res = await exec('find /storage/emulated/0 -maxdepth 5 -type d -name ".obsidian" 2>/dev/null');
@@ -132,7 +170,8 @@ async function scanVaults() {
     if (res.stdout && res.stdout.trim()) {
         const vaults = res.stdout.trim().split("\n");
         vaults.forEach(vaultPath => {
-            const dir = vaultPath.replace("/.obsidian", "");
+            const dir = vaultPath.replace("/.obsidian", "").trim();
+            if (!dir) return;
             const name = dir.split("/").pop();
             const opt = document.createElement("option");
             opt.value = dir;
@@ -148,7 +187,6 @@ async function scanVaults() {
         let notes = `${selected}/00-Zettelkasten`;
         let att = `${selected}/99-index/Files`;
 
-        // app.json oku
         const appRes = await exec(`cat "${selected}/.obsidian/app.json" 2>/dev/null`);
         if (appRes.stdout) {
             try {
@@ -176,42 +214,157 @@ async function saveConfig() {
         return;
     }
 
-    const content = `# Generated by WebUI\nDEST_NOTES="${notes}"\nDEST_ATTACHMENTS="${att}"\nTIME_FORMAT="${fmt}"\nNOTE_TAG="${tag}"\n`;
+    const content = `# Generated by WebUI\\nDEST_NOTES=\\"${notes}\\"\\nDEST_ATTACHMENTS=\\"${att}\\"\\nTIME_FORMAT=\\"${fmt}\\"\\nNOTE_TAG=\\"${tag}\\"\\n`;
     await exec(`mkdir -p "$(dirname "${CONFIG_PATH}")" "${notes}" "${att}"`);
-    await exec(`cat << 'EOF' > "${CONFIG_PATH}"\n${content}EOF`);
+    await exec(`printf "${content}" > "${CONFIG_PATH}"`);
 
     showToast("Settings saved successfully!");
 }
 
 // Trigger Manual Sync
-document.getElementById("btn-sync-now").addEventListener("click", async () => {
-    showToast("Running sync...");
-    const res = await exec(`sh "${SYNC_SCRIPT}"`);
-    showToast("Sync finished!");
-    refreshDashboard();
-});
+const syncBtn = document.getElementById("btn-sync-now");
+if (syncBtn) {
+    syncBtn.addEventListener("click", async () => {
+        showToast("Running sync...");
+        await exec(`sh "${SYNC_SCRIPT}"`);
+        showToast("Sync finished!");
+        refreshDashboard();
+    });
+}
 
 // Refresh Log Button
-document.getElementById("btn-refresh-log").addEventListener("click", () => {
-    refreshDashboard();
-    showToast("Logs refreshed");
-});
+const refreshLogBtn = document.getElementById("btn-refresh-log");
+if (refreshLogBtn) {
+    refreshLogBtn.addEventListener("click", () => {
+        refreshDashboard();
+        showToast("Logs refreshed");
+    });
+}
 
 // Save Settings Button
-document.getElementById("btn-save-config").addEventListener("click", saveConfig);
+const saveBtn = document.getElementById("btn-save-config");
+if (saveBtn) {
+    saveBtn.addEventListener("click", saveConfig);
+}
 
 // Re-sync All Past History
-document.getElementById("btn-reset-history").addEventListener("click", async () => {
-    if (confirm("Are you sure? This will reset the sync pointer and re-process all notes in Essential Space.")) {
-        await exec(`echo "0" > "${STATE_PATH}"`);
-        showToast("Pointer reset! Running full sync...");
-        await exec(`sh "${SYNC_SCRIPT}"`);
-        showToast("Full sync complete!");
-        refreshDashboard();
-    }
-});
+const resetBtn = document.getElementById("btn-reset-history");
+if (resetBtn) {
+    resetBtn.addEventListener("click", async () => {
+        if (confirm("Are you sure? This will reset the sync pointer and re-process all notes in Essential Space.")) {
+            await exec(`echo "0" > "${STATE_PATH}"`);
+            showToast("Pointer reset! Running full sync...");
+            await exec(`sh "${SYNC_SCRIPT}"`);
+            showToast("Full sync complete!");
+            refreshDashboard();
+        }
+    });
+}
+
+// -----------------------------------------------------------------------------
+// Software Update Logic (KernelSU, Magisk, MMRL)
+// -----------------------------------------------------------------------------
+const CURRENT_VERSION = "v1.0.0";
+const CURRENT_VERSION_CODE = 100;
+const UPDATE_JSON_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update.json";
+let pendingUpdate = null;
+
+const checkUpdateBtn = document.getElementById("btn-check-update");
+const installUpdateBtn = document.getElementById("btn-install-update");
+const updateBadge = document.getElementById("update-status-badge");
+const updateInfo = document.getElementById("update-info-text");
+
+if (checkUpdateBtn) {
+    checkUpdateBtn.addEventListener("click", async () => {
+        checkUpdateBtn.textContent = "CHECKING...";
+        checkUpdateBtn.disabled = true;
+        try {
+            const res = await fetch(`${UPDATE_JSON_URL}?t=${Date.now()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            if (data.versionCode > CURRENT_VERSION_CODE) {
+                pendingUpdate = data;
+                if (updateBadge) {
+                    updateBadge.className = "badge badge-active";
+                    updateBadge.textContent = `UPDATE: ${data.version}`;
+                }
+                if (updateInfo) {
+                    updateInfo.textContent = `New version ${data.version} available!`;
+                }
+                if (installUpdateBtn) {
+                    installUpdateBtn.classList.remove("hidden");
+                }
+                showToast(`New update ${data.version} found!`);
+            } else {
+                if (updateInfo) {
+                    updateInfo.textContent = `You are on the latest version (${CURRENT_VERSION}).`;
+                }
+                showToast("You have the latest version!");
+            }
+        } catch (err) {
+            console.error("Update check failed:", err);
+            if (updateInfo) {
+                updateInfo.textContent = "Could not reach update server. Check internet connection.";
+            }
+            showToast("Update check failed");
+        } finally {
+            checkUpdateBtn.textContent = "🔍 CHECK FOR UPDATES";
+            checkUpdateBtn.disabled = false;
+        }
+    });
+}
+
+if (installUpdateBtn) {
+    installUpdateBtn.addEventListener("click", async () => {
+        if (!pendingUpdate || !pendingUpdate.zipUrl) return;
+        if (!confirm(`Do you want to download and install Nothing Essential Sync ${pendingUpdate.version}?`)) return;
+
+        installUpdateBtn.disabled = true;
+        installUpdateBtn.textContent = "INSTALLING...";
+        showToast("Downloading update package...");
+
+        const installCmd = `TMP_ZIP="/data/local/tmp/essential_sync_update.zip"
+rm -f "$TMP_ZIP"
+curl -L -s -f -o "$TMP_ZIP" "${pendingUpdate.zipUrl}" 2>/dev/null || wget -q -O "$TMP_ZIP" "${pendingUpdate.zipUrl}" 2>/dev/null
+if [ ! -f "$TMP_ZIP" ] || [ ! -s "$TMP_ZIP" ]; then
+    echo "DOWNLOAD_FAILED"
+    exit 1
+fi
+
+if command -v ksud >/dev/null 2>&1; then
+    ksud module install "$TMP_ZIP"
+elif command -v apd >/dev/null 2>&1; then
+    apd module install "$TMP_ZIP"
+elif command -v magisk >/dev/null 2>&1; then
+    magisk --install-module "$TMP_ZIP"
+else
+    echo "NO_SUPPORTED_ROOT_MANAGER"
+    exit 2
+fi
+STATUS=$?
+rm -f "$TMP_ZIP"
+exit $STATUS`;
+
+        const res = await exec(installCmd);
+        if (res.errno === 0) {
+            showToast("Updated successfully! Please reboot your device.");
+            if (updateInfo) {
+                updateInfo.innerHTML = "✅ <strong>Update installed!</strong> Reboot device to apply changes.";
+            }
+            installUpdateBtn.classList.add("hidden");
+        } else {
+            showToast("Installation failed: " + (res.stdout || res.stderr || "Unknown error"));
+            installUpdateBtn.disabled = false;
+            installUpdateBtn.textContent = "🚀 RETRY INSTALL";
+        }
+    });
+}
 
 // Initial Load
 window.addEventListener("DOMContentLoaded", () => {
     refreshDashboard();
+    loadConfig();
+    scanVaults();
 });
+

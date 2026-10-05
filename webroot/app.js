@@ -261,9 +261,110 @@ if (resetBtn) {
     });
 }
 
+// -----------------------------------------------------------------------------
+// Software Update Logic (KernelSU, Magisk, MMRL)
+// -----------------------------------------------------------------------------
+const CURRENT_VERSION = "v1.0.0";
+const CURRENT_VERSION_CODE = 100;
+const UPDATE_JSON_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update.json";
+let pendingUpdate = null;
+
+const checkUpdateBtn = document.getElementById("btn-check-update");
+const installUpdateBtn = document.getElementById("btn-install-update");
+const updateBadge = document.getElementById("update-status-badge");
+const updateInfo = document.getElementById("update-info-text");
+
+if (checkUpdateBtn) {
+    checkUpdateBtn.addEventListener("click", async () => {
+        checkUpdateBtn.textContent = "CHECKING...";
+        checkUpdateBtn.disabled = true;
+        try {
+            const res = await fetch(`${UPDATE_JSON_URL}?t=${Date.now()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            if (data.versionCode > CURRENT_VERSION_CODE) {
+                pendingUpdate = data;
+                if (updateBadge) {
+                    updateBadge.className = "badge badge-active";
+                    updateBadge.textContent = `UPDATE: ${data.version}`;
+                }
+                if (updateInfo) {
+                    updateInfo.textContent = `New version ${data.version} available!`;
+                }
+                if (installUpdateBtn) {
+                    installUpdateBtn.classList.remove("hidden");
+                }
+                showToast(`New update ${data.version} found!`);
+            } else {
+                if (updateInfo) {
+                    updateInfo.textContent = `You are on the latest version (${CURRENT_VERSION}).`;
+                }
+                showToast("You have the latest version!");
+            }
+        } catch (err) {
+            console.error("Update check failed:", err);
+            if (updateInfo) {
+                updateInfo.textContent = "Could not reach update server. Check internet connection.";
+            }
+            showToast("Update check failed");
+        } finally {
+            checkUpdateBtn.textContent = "🔍 CHECK FOR UPDATES";
+            checkUpdateBtn.disabled = false;
+        }
+    });
+}
+
+if (installUpdateBtn) {
+    installUpdateBtn.addEventListener("click", async () => {
+        if (!pendingUpdate || !pendingUpdate.zipUrl) return;
+        if (!confirm(`Do you want to download and install Nothing Essential Sync ${pendingUpdate.version}?`)) return;
+
+        installUpdateBtn.disabled = true;
+        installUpdateBtn.textContent = "INSTALLING...";
+        showToast("Downloading update package...");
+
+        const installCmd = `TMP_ZIP="/data/local/tmp/essential_sync_update.zip"
+rm -f "$TMP_ZIP"
+curl -L -s -f -o "$TMP_ZIP" "${pendingUpdate.zipUrl}" 2>/dev/null || wget -q -O "$TMP_ZIP" "${pendingUpdate.zipUrl}" 2>/dev/null
+if [ ! -f "$TMP_ZIP" ] || [ ! -s "$TMP_ZIP" ]; then
+    echo "DOWNLOAD_FAILED"
+    exit 1
+fi
+
+if command -v ksud >/dev/null 2>&1; then
+    ksud module install "$TMP_ZIP"
+elif command -v apd >/dev/null 2>&1; then
+    apd module install "$TMP_ZIP"
+elif command -v magisk >/dev/null 2>&1; then
+    magisk --install-module "$TMP_ZIP"
+else
+    echo "NO_SUPPORTED_ROOT_MANAGER"
+    exit 2
+fi
+STATUS=$?
+rm -f "$TMP_ZIP"
+exit $STATUS`;
+
+        const res = await exec(installCmd);
+        if (res.errno === 0) {
+            showToast("Updated successfully! Please reboot your device.");
+            if (updateInfo) {
+                updateInfo.innerHTML = "✅ <strong>Update installed!</strong> Reboot device to apply changes.";
+            }
+            installUpdateBtn.classList.add("hidden");
+        } else {
+            showToast("Installation failed: " + (res.stdout || res.stderr || "Unknown error"));
+            installUpdateBtn.disabled = false;
+            installUpdateBtn.textContent = "🚀 RETRY INSTALL";
+        }
+    });
+}
+
 // Initial Load
 window.addEventListener("DOMContentLoaded", () => {
     refreshDashboard();
     loadConfig();
     scanVaults();
 });
+

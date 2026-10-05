@@ -117,6 +117,16 @@ This generates `nothing-essential-sync-v1.0.0.zip` ready to flash.
 
 ---
 
+## 🔄 Updates & Auto-Update Mechanism
+
+Essential Sync provides two seamless update methods:
+1. **KernelSU / Magisk / MMRL Native Auto-Update:**  
+   The module integrates the official `updateJson` specification. When a new release is published to GitHub, your root manager displays an **Update** badge with changelog details for one-click installation.
+2. **In-WebUI Update Checker:**  
+   Under the **Info** tab in WebUI, tap **Check for Updates** to query GitHub directly. If a newer release is detected, tap **Install Update** to automatically download and flash the module via `ksud`/`apd`/`magisk`.
+
+---
+
 ## 🗑️ Uninstallation
 
 - If installed as a module: simply remove it via KernelSU / Magisk / APatch Manager.

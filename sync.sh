@@ -29,6 +29,17 @@ DEST_ATTACHMENTS="${DEST_ATTACHMENTS:-/storage/emulated/0/Documents/EssentialSpa
 TIME_FORMAT="${TIME_FORMAT:-%Y-%m-%d %H.%M}"
 NOTE_TAG="${NOTE_TAG:-inbox/essential-space}"
 
+LOCK_FILE="/data/local/tmp/essential_sync.lock"
+
+# 0. Paralel veya çifte tetiklemeyi önleme kilidi
+if [ -f "${LOCK_FILE}" ]; then
+    OLD_PID=$(cat "${LOCK_FILE}" 2>/dev/null)
+    if [ -n "${OLD_PID}" ] && kill -0 "${OLD_PID}" 2>/dev/null; then
+        exit 0
+    fi
+fi
+echo $$ > "${LOCK_FILE}"
+
 TMP_DIR="/data/local/tmp/essential_snap_$$"
 
 log() {
@@ -39,11 +50,13 @@ log() {
 # 1. Kontroller
 if [ ! -f "${SOURCE_DB}" ]; then
     log "UYARI: Essential Space veritabanı bulunamadı: ${SOURCE_DB}"
+    rm -f "${LOCK_FILE}"
     exit 0
 fi
 
 if [ ! -x "${SQLITE_BIN}" ]; then
     log "HATA: sqlite3 ikili dosyası bulunamadı veya çalıştırılamıyor: ${SQLITE_BIN}"
+    rm -f "${LOCK_FILE}"
     exit 1
 fi
 
@@ -52,7 +65,7 @@ mkdir -p "${DEST_NOTES}" "${DEST_ATTACHMENTS}"
 # 2. Snap-to-RAM (Nothing OS kütüğünü riske atmamak için RAM kopyası)
 rm -rf "${TMP_DIR}" 2>/dev/null
 mkdir -p "${TMP_DIR}"
-trap 'rm -rf "${TMP_DIR}"' EXIT INT TERM
+trap 'rm -rf "${TMP_DIR}" "${LOCK_FILE}"' EXIT INT TERM
 
 cp "${SOURCE_DB}" "${TMP_DIR}/snap.db" 2>/dev/null || exit 1
 [ -f "${SOURCE_DB}-wal" ] && cp "${SOURCE_DB}-wal" "${TMP_DIR}/snap.db-wal" 2>/dev/null
