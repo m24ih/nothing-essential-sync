@@ -269,8 +269,8 @@ if (resetBtn) {
 // -----------------------------------------------------------------------------
 // Software Update Logic (KernelSU, Magisk, MMRL)
 // -----------------------------------------------------------------------------
-const CURRENT_VERSION = "v1.1.0";
-const CURRENT_VERSION_CODE = 110;
+const CURRENT_VERSION = "v1.1.1";
+const CURRENT_VERSION_CODE = 111;
 const STABLE_UPDATE_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update.json";
 const NIGHTLY_UPDATE_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update-nightly.json";
 let pendingUpdate = null;
@@ -289,9 +289,26 @@ if (checkUpdateBtn) {
         const targetUrl = channel === "nightly" ? NIGHTLY_UPDATE_URL : STABLE_UPDATE_URL;
 
         try {
-            const res = await fetch(`${targetUrl}?t=${Date.now()}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
+            // Android WebView CORS engeline takılmamak için doğrudan Root Shell (curl/wget) üzerinden çekiyoruz
+            let rawJson = "";
+            const shellRes = await exec(`curl -sL --connect-timeout 8 -H "Cache-Control: no-cache" "${targetUrl}" 2>/dev/null || wget -q -O - "${targetUrl}" 2>/dev/null`);
+            if (shellRes.stdout && shellRes.stdout.trim().startsWith("{")) {
+                rawJson = shellRes.stdout.trim();
+            } else {
+                // Fallback: tarayıcı fetch denemesi
+                try {
+                    const fetchRes = await fetch(`${targetUrl}?t=${Date.now()}`);
+                    if (fetchRes.ok) {
+                        rawJson = await fetchRes.text();
+                    }
+                } catch(e) {}
+            }
+
+            if (!rawJson) {
+                throw new Error("Could not fetch update data (curl/wget/fetch failed)");
+            }
+
+            const data = JSON.parse(rawJson);
 
             if (channel === "nightly" || data.versionCode > CURRENT_VERSION_CODE) {
                 pendingUpdate = data;
@@ -315,7 +332,7 @@ if (checkUpdateBtn) {
         } catch (err) {
             console.error("Update check failed:", err);
             if (updateInfo) {
-                updateInfo.textContent = "Could not reach update server. Check internet connection.";
+                updateInfo.textContent = `Update check failed: ${err.message || err}`;
             }
             showToast("Update check failed");
         } finally {

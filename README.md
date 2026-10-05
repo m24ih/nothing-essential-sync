@@ -38,7 +38,7 @@ When installed as a module, open **KernelSU Manager** or **MMRL** and click **We
 ## 📦 Installation
 
 ### Method 1: Magisk / KernelSU / APatch Flashable Module (Recommended)
-1. Download the latest `nothing-essential-sync-v1.1.0.zip` from [Stable Releases](https://github.com/m24ih/nothing-essential-sync/releases/latest) (or grab bleeding-edge builds from [Nightly Releases](https://github.com/m24ih/nothing-essential-sync/releases/tag/nightly)).
+1. Download the latest `nothing-essential-sync-v1.1.1.zip` from [Stable Releases](https://github.com/m24ih/nothing-essential-sync/releases/latest) (or grab bleeding-edge builds from [Nightly Releases](https://github.com/m24ih/nothing-essential-sync/releases/tag/nightly)).
 2. Open **KernelSU**, **APatch**, or **Magisk** app on your phone.
 3. Tap **Modules** -> **Install from storage** -> Select the `.zip` file.
 4. Reboot or open the module's **WebUI** in KernelSU/MMRL to configure your vault paths!
