@@ -22,7 +22,8 @@ jobs:
 
       - name: Set executable permissions
         run: |
-          chmod +x make_module.sh sync.sh service.sh setup.sh action.sh bin/sqlite3
+          chmod +x make_module.sh sync.sh service.sh setup.sh action.sh
+          [ -f bin/sqlite3 ] && chmod +x bin/sqlite3 || true
 
       - name: Build Module Package
         run: |
