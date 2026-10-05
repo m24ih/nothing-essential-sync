@@ -2,6 +2,16 @@
 
 All notable changes to the **Nothing Essential Sync** module will be documented in this file.
 
+## [v1.1.2] - 2026-10-06
+
+### Fixed
+- **Single Toast Notification**: Resolved overlapping toast messages in KernelSU by prioritizing native toast notifications.
+- **Release Naming**: Placed version number upfront (`v1.1.2 - Nothing Essential Sync`) for cleaner visibility on GitHub Releases.
+
+### Added
+- **Hot-Reload Live Updates**: In-app WebUI module updates are now applied immediately to live service files without requiring a device reboot.
+- **WebUI Reboot Button**: Added dedicated `🔄 REBOOT PHONE` button for optional KernelSU overlay persistence.
+
 ## [v1.1.1] - 2026-10-06
 
 ### Added

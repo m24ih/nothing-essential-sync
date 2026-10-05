@@ -272,8 +272,8 @@ if (resetBtn) {
 // -----------------------------------------------------------------------------
 // Software Update Logic (KernelSU, Magisk, MMRL)
 // -----------------------------------------------------------------------------
-const CURRENT_VERSION = "v1.1.1";
-const CURRENT_VERSION_CODE = 111;
+const CURRENT_VERSION = "v1.1.2";
+const CURRENT_VERSION_CODE = 112;
 const STABLE_UPDATE_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update.json";
 const NIGHTLY_UPDATE_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update-nightly.json";
 let pendingUpdate = null;
