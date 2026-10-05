@@ -27,6 +27,9 @@ set_perm "$MODPATH/bin/sqlite3" 0 0 0755
 set_perm "$MODPATH/sync.sh" 0 0 0755
 set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/setup.sh" 0 0 0755
+set_perm "$MODPATH/action.sh" 0 0 0755
+set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644
+set_perm_recursive "$MODPATH/webui" 0 0 0755 0644
 
 # 3. Create runtime storage if not existing
 mkdir -p /data/adb/essential-sync/bin 2>/dev/null

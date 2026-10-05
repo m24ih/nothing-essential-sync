@@ -23,14 +23,16 @@ cp -f "${SCRIPT_DIR}/uninstall.sh" "${BUILD_DIR}/"
 cp -f "${SCRIPT_DIR}/sync.sh" "${BUILD_DIR}/"
 cp -f "${SCRIPT_DIR}/setup.sh" "${BUILD_DIR}/"
 cp -f "${SCRIPT_DIR}/config.env" "${BUILD_DIR}/"
+cp -f "${SCRIPT_DIR}/action.sh" "${BUILD_DIR}/"
 
 # 2. Copy binary
 mkdir -p "${BUILD_DIR}/bin"
 cp -f "${SCRIPT_DIR}/bin/sqlite3" "${BUILD_DIR}/bin/"
-chmod 755 "${BUILD_DIR}/bin/sqlite3" "${BUILD_DIR}/sync.sh" "${BUILD_DIR}/service.sh" "${BUILD_DIR}/setup.sh"
+chmod 755 "${BUILD_DIR}/bin/sqlite3" "${BUILD_DIR}/sync.sh" "${BUILD_DIR}/service.sh" "${BUILD_DIR}/setup.sh" "${BUILD_DIR}/action.sh"
 
-# 3. Copy WebUI
-mkdir -p "${BUILD_DIR}/webui"
+# 3. Copy WebUI & WebRoot (Official KernelSU standard is webroot)
+mkdir -p "${BUILD_DIR}/webroot" "${BUILD_DIR}/webui"
+cp -r "${SCRIPT_DIR}/webroot/"* "${BUILD_DIR}/webroot/"
 cp -r "${SCRIPT_DIR}/webui/"* "${BUILD_DIR}/webui/"
 
 # 4. Create ZIP
