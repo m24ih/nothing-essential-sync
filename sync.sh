@@ -28,6 +28,81 @@ DEST_NOTES="${DEST_NOTES:-/storage/emulated/0/Documents/EssentialSpaceNotes/00-Z
 DEST_ATTACHMENTS="${DEST_ATTACHMENTS:-/storage/emulated/0/Documents/EssentialSpaceNotes/attachments}"
 TIME_FORMAT="${TIME_FORMAT:-%Y-%m-%d %H.%M}"
 NOTE_TAG="${NOTE_TAG:-inbox/essential-space}"
+NOTE_LANG="${NOTE_LANG:-auto}"
+
+# Sistem dili algılama (persist.sys.locale -> ro.product.locale -> fallback: en)
+DETECTED_LANG="en"
+if [ "${NOTE_LANG}" = "auto" ] || [ -z "${NOTE_LANG}" ]; then
+    LOCALE_PROP=$(getprop persist.sys.locale 2>/dev/null)
+    [ -z "${LOCALE_PROP}" ] && LOCALE_PROP=$(getprop ro.product.locale 2>/dev/null)
+    case "${LOCALE_PROP}" in
+        tr*|TR*) DETECTED_LANG="tr" ;;
+        de*|DE*) DETECTED_LANG="de" ;;
+        fr*|FR*) DETECTED_LANG="fr" ;;
+        es*|ES*) DETECTED_LANG="es" ;;
+        it*|IT*) DETECTED_LANG="it" ;;
+        ru*|RU*) DETECTED_LANG="ru" ;;
+        ja*|JA*) DETECTED_LANG="ja" ;;
+        zh*|ZH*) DETECTED_LANG="zh" ;;
+        *)       DETECTED_LANG="en" ;;
+    esac
+else
+    DETECTED_LANG="${NOTE_LANG}"
+fi
+
+case "${DETECTED_LANG}" in
+    tr)
+        STR_SUMMARY="AI Özeti"
+        STR_NOTE="Not"
+        STR_TRANSCRIPT="Ses Dökümü"
+        STR_AUDIO="Ses Kaydı"
+        STR_SCREENSHOT="Ekran Görüntüsü"
+        STR_DEFAULT_TITLE="Essential Not"
+        STR_SYNCED="Senkronize edildi"
+        STR_COMPLETED="Senkronizasyon tamamlandı. Durum güncellendi"
+        ;;
+    de)
+        STR_SUMMARY="KI-Zusammenfassung"
+        STR_NOTE="Notiz"
+        STR_TRANSCRIPT="Sprachtranskript"
+        STR_AUDIO="Audioaufnahme"
+        STR_SCREENSHOT="Screenshot"
+        STR_DEFAULT_TITLE="Essential Notiz"
+        STR_SYNCED="Synchronisiert"
+        STR_COMPLETED="Synchronisierung abgeschlossen. Status aktualisiert"
+        ;;
+    fr)
+        STR_SUMMARY="Résumé IA"
+        STR_NOTE="Note"
+        STR_TRANSCRIPT="Transcription vocale"
+        STR_AUDIO="Enregistrement audio"
+        STR_SCREENSHOT="Capture d'écran"
+        STR_DEFAULT_TITLE="Note Essential"
+        STR_SYNCED="Synchronisé"
+        STR_COMPLETED="Synchronisation terminée. État mis à jour"
+        ;;
+    es)
+        STR_SUMMARY="Resumen de IA"
+        STR_NOTE="Nota"
+        STR_TRANSCRIPT="Transcripción de voz"
+        STR_AUDIO="Grabación de audio"
+        STR_SCREENSHOT="Captura de pantalla"
+        STR_DEFAULT_TITLE="Nota Essential"
+        STR_SYNCED="Sincronizado"
+        STR_COMPLETED="Sincronización completada. Estado actualizado"
+        ;;
+    *)
+        # Default (en)
+        STR_SUMMARY="AI Summary"
+        STR_NOTE="Note"
+        STR_TRANSCRIPT="Voice Transcript"
+        STR_AUDIO="Audio Recording"
+        STR_SCREENSHOT="Screenshot"
+        STR_DEFAULT_TITLE="Essential Note"
+        STR_SYNCED="Synced"
+        STR_COMPLETED="Sync completed. State updated"
+        ;;
+esac
 
 LOCK_FILE="/data/local/tmp/essential_sync.lock"
 
@@ -131,7 +206,7 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME DATE_STR DATE_ISO; d
     # Dosya adı temizleme
     CLEAN_TITLE=$(echo "${TITLE}" | tr '/\\:*?"<>|#' '_' | tr '\n\r' ' ' | sed 's/^[ .]*//; s/[ .]*$//' | cut -c 1-50)
     if [ -z "${CLEAN_TITLE}" ]; then
-        CLEAN_TITLE="Essential Note"
+        CLEAN_TITLE="${STR_DEFAULT_TITLE}"
     fi
 
     TARGET_FILENAME="${DATE_STR} - ${CLEAN_TITLE}.md"
@@ -146,7 +221,7 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME DATE_STR DATE_ISO; d
 
     # Markdown dosyasını oluştur
     DISPLAY_TITLE="${TITLE}"
-    [ -z "${DISPLAY_TITLE}" ] && DISPLAY_TITLE="Essential Note"
+    [ -z "${DISPLAY_TITLE}" ] && DISPLAY_TITLE="${STR_DEFAULT_TITLE}"
 
     cat <<EOF > "${TMP_NOTE}"
 ---
@@ -163,7 +238,7 @@ EOF
     if [ -n "${SUMMARY}" ]; then
         cat <<EOF >> "${TMP_NOTE}"
 
-> [!summary] AI Özeti
+> [!summary] ${STR_SUMMARY}
 > ${SUMMARY}
 EOF
     fi
@@ -171,7 +246,7 @@ EOF
     if [ -n "${NOTE_TEXT}" ]; then
         cat <<EOF >> "${TMP_NOTE}"
 
-### 📝 Not
+### 📝 ${STR_NOTE}
 ${NOTE_TEXT}
 EOF
     fi
@@ -179,7 +254,7 @@ EOF
     if [ -n "${TRANSCRIPTION}" ]; then
         cat <<EOF >> "${TMP_NOTE}"
 
-### 🎙️ Ses Dökümü
+### 🎙️ ${STR_TRANSCRIPT}
 ${TRANSCRIPTION}
 EOF
     fi
@@ -187,7 +262,7 @@ EOF
     if [ -n "${AUDIO_FILENAME}" ]; then
         cat <<EOF >> "${TMP_NOTE}"
 
-### 🎧 Ses Kaydı
+### 🎧 ${STR_AUDIO}
 ![[${AUDIO_FILENAME}]]
 EOF
     fi
@@ -195,7 +270,7 @@ EOF
     if [ -n "${IMG_FILENAME}" ]; then
         cat <<EOF >> "${TMP_NOTE}"
 
-### 🖼️ Ekran Görüntüsü
+### 🖼️ ${STR_SCREENSHOT}
 ![[${IMG_FILENAME}]]
 EOF
     fi
@@ -207,10 +282,11 @@ EOF
     chmod 660 "${TARGET_FILE}" 2>/dev/null
     rm -f "${TMP_NOTE}" 2>/dev/null
 
-    log "Senkronize edildi: ${TARGET_FILENAME}"
+    log "${STR_SYNCED}: ${TARGET_FILENAME}"
 
     # En yüksek zaman damgasını güncelle
     echo "${CREATE_TIME}" > "${STATE_FILE}"
 done
 
-log "Senkronizasyon tamamlandı. Durum güncellendi: $(cat "${STATE_FILE}" 2>/dev/null)"
+log "${STR_COMPLETED}: $(cat "${STATE_FILE}" 2>/dev/null)"
+

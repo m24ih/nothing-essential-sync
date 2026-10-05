@@ -17,6 +17,8 @@ An ultra-lightweight, zero-battery, event-driven bridge for **Nothing OS** that 
   - 🎙️ **Voice Notes & AI Transcripts:** Audio files (`.wav`) copied to attachments + AI speech-to-text transcription automatically included.
   - 🖼️ **Screenshots:** WebP screenshots copied to vault attachments and embedded (`![[image.webp]]`).
   - 🧠 **AI Summaries:** Nothing AI summaries rendered in Obsidian callouts (`> [!summary]`).
+- **🌍 Smart Device Localization (i18n):**  
+  Automatically detects your device language (`persist.sys.locale`) and generates note callouts & section headers matching your phone's language (English, Turkish, German, French, Spanish, etc.), or lock your preferred language via WebUI.
 - **🛡️ Ghost Note Protection:**  
   State-tracking timestamp ensures that when you triage, move, or delete notes on your PC or tablet, old notes are never resurrected.
 - **🧩 Universal Root Compatibility:**  
@@ -75,6 +77,9 @@ TIME_FORMAT="%Y-%m-%d %H.%M"
 
 # Default tag added to note frontmatter
 NOTE_TAG="inbox/essential-space"
+
+# Note section language: "auto" (detect device locale), "en", "tr", "de", "fr", "es"
+NOTE_LANG="auto"
 ```
 
 ---
@@ -92,16 +97,16 @@ tags:
 
 # Calibre-web Obsidian Plugin
 
-> [!summary] AI Özeti
+> [!summary] AI Summary
 > New Calibre-web plugin for Obsidian enhances reading and note-taking with PDF/EPUB support.
 
-### 🎙️ Ses Dökümü
+### 🎙️ Voice Transcript
 I crown the Cops and downpillaging the dust once again.
 
-### 🎧 Ses Kaydı
+### 🎧 Audio Recording
 ![[52687339-a6f4-4f60-a1ed-49f235bcb851.wav]]
 
-### 🖼️ Ekran Görüntüsü
+### 🖼️ Screenshot
 ![[014f109e-f437-4a97-9958-7a51865f564f.webp]]
 ```
 
@@ -113,7 +118,7 @@ To build a fresh flashable ZIP module from source:
 ```bash
 ./make_module.sh
 ```
-This generates `nothing-essential-sync-v1.0.0.zip` ready to flash.
+This generates `nothing-essential-sync-v1.1.0.zip` ready to flash.
 
 ---
 

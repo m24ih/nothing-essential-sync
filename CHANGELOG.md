@@ -8,6 +8,7 @@ All notable changes to the **Nothing Essential Sync** module will be documented 
 - **KernelSU & Magisk Auto-Update Support**: Native `updateJson` specification integration for one-click updates via root managers.
 - **In-App WebUI Update Center**: Channel selection (Stable / Nightly), update check against GitHub releases, and direct root flash mechanism.
 - **GitHub Actions CI/CD**: Automated nightly releases on every commit + manual/tag-triggered production releases.
+- **Smart Device Localization (i18n)**: Automatically formats Markdown callouts & section headers based on the phone's system language (`persist.sys.locale`), with customizable language override in WebUI.
 - **Process Lock & Debounce**: Prevent duplicate execution and repeated logs when inotify triggers multiple file closure events.
 
 ## [v1.0.0] - 2026-10-06
