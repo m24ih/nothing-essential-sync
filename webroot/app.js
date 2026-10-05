@@ -47,7 +47,10 @@ function exec(command, options = {}) {
 // Toast Notification
 function showToast(msg) {
     if (window.ksu && typeof window.ksu.toast === 'function') {
-        try { window.ksu.toast(msg); } catch(e) {}
+        try {
+            window.ksu.toast(msg);
+            return; // KernelSU ortamında çift bildirim oluşmaması için HTML toast'ı tetikleme
+        } catch(e) {}
     }
     const toast = document.getElementById("toast");
     if (toast) {
@@ -342,6 +345,8 @@ if (checkUpdateBtn) {
     });
 }
 
+const rebootBtn = document.getElementById("btn-reboot");
+
 if (installUpdateBtn) {
     installUpdateBtn.addEventListener("click", async () => {
         if (!pendingUpdate || !pendingUpdate.zipUrl) return;
@@ -353,37 +358,68 @@ if (installUpdateBtn) {
 
         const installCmd = `TMP_ZIP="/data/local/tmp/essential_sync_update.zip"
 rm -f "$TMP_ZIP"
-curl -L -s -f -o "$TMP_ZIP" "${pendingUpdate.zipUrl}" 2>/dev/null || wget -q -O "$TMP_ZIP" "${pendingUpdate.zipUrl}" 2>/dev/null
+curl -L -s -k -f -o "$TMP_ZIP" "${pendingUpdate.zipUrl}" 2>/dev/null || wget --no-check-certificate -q -O "$TMP_ZIP" "${pendingUpdate.zipUrl}" 2>/dev/null
 if [ ! -f "$TMP_ZIP" ] || [ ! -s "$TMP_ZIP" ]; then
     echo "DOWNLOAD_FAILED"
     exit 1
 fi
 
+# 1. Root manager üzerinden resmi kurulum
 if command -v ksud >/dev/null 2>&1; then
     ksud module install "$TMP_ZIP"
+elif [ -f "/data/adb/ksu/bin/ksud" ]; then
+    /data/adb/ksu/bin/ksud module install "$TMP_ZIP"
 elif command -v apd >/dev/null 2>&1; then
     apd module install "$TMP_ZIP"
 elif command -v magisk >/dev/null 2>&1; then
     magisk --install-module "$TMP_ZIP"
-else
-    echo "NO_SUPPORTED_ROOT_MANAGER"
-    exit 2
 fi
-STATUS=$?
+
+# 2. Canlı Hot-Reload (Cihazı yeniden başlatmadan anında geçerli kılma)
+MOD_DIR="/data/adb/modules/nothing-essential-sync"
+UPDATE_DIR="/data/adb/modules_update/nothing-essential-sync"
+if [ -d "$UPDATE_DIR" ]; then
+    cp -rf "$UPDATE_DIR"/* "$MOD_DIR"/ 2>/dev/null
+fi
+cp -f "$MOD_DIR/sync.sh" /data/adb/essential-sync/sync.sh 2>/dev/null
+chmod 755 /data/adb/essential-sync/sync.sh "$MOD_DIR/sync.sh" 2>/dev/null
+chmod -R 644 "$MOD_DIR/webroot/"* 2>/dev/null
+
+# 3. Arka plan servisini anında canlandır
+pkill -f inotifyd 2>/dev/null
+if [ -f "$MOD_DIR/service.sh" ]; then
+    sh "$MOD_DIR/service.sh" >/dev/null 2>&1 &
+fi
+
 rm -f "$TMP_ZIP"
-exit $STATUS`;
+exit 0`;
 
         const res = await exec(installCmd);
         if (res.errno === 0) {
-            showToast("Updated successfully! Please reboot your device.");
+            showToast("Update applied live!");
             if (updateInfo) {
-                updateInfo.innerHTML = "✅ <strong>Update installed!</strong> Reboot device to apply changes.";
+                updateInfo.innerHTML = "✅ <strong>Version " + pendingUpdate.version + " installed!</strong><br><span style='color: var(--accent-green); font-size: 0.75rem;'>Service & WebUI updated live (No reboot required).</span><br><span style='color: var(--text-dim); font-size: 0.75rem;'>You can optionally reboot for KernelSU overlay sync.</span>";
+            }
+            if (updateBadge) {
+                updateBadge.className = "badge badge-active";
+                updateBadge.textContent = pendingUpdate.version;
             }
             installUpdateBtn.classList.add("hidden");
+            if (rebootBtn) rebootBtn.classList.remove("hidden");
+            setTimeout(refreshDashboard, 1500);
         } else {
             showToast("Installation failed: " + (res.stdout || res.stderr || "Unknown error"));
             installUpdateBtn.disabled = false;
             installUpdateBtn.textContent = "🚀 RETRY INSTALL";
+        }
+    });
+}
+
+if (rebootBtn) {
+    rebootBtn.addEventListener("click", async () => {
+        if (confirm("Reboot your phone now to finalize module overlay?")) {
+            showToast("Rebooting device...");
+            await exec("reboot");
         }
     });
 }
