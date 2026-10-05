@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Essential Sync</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <span class="red-dot"></span>
+                <h1 class="ndot-title">ESSENTIAL SYNC</h1>
+            </div>
+            <span class="version-tag">v1.0.0</span>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button class="tab-btn active" data-tab="dashboard">DASHBOARD</button>
+            <button class="tab-btn" data-tab="settings">SETTINGS</button>
+            <button class="tab-btn" data-tab="about">INFO</button>
+        </nav>
+
+        <!-- Tab 1: Dashboard -->
+        <main id="tab-dashboard" class="tab-content active">
+            <!-- Status Card -->
+            <div class="card status-card">
+                <div class="card-header">
+                    <span class="card-label">SERVICE STATUS</span>
+                    <span id="daemon-badge" class="badge badge-loading">CHECKING...</span>
+                </div>
+                <div class="status-grid">
+                    <div class="metric">
+                        <span class="metric-val" id="stat-count">-</span>
+                        <span class="metric-label">SYNCED CARDS</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-val" id="stat-time">-</span>
+                        <span class="metric-label">LAST SYNC</span>
+                    </div>
+                </div>
+                <button id="btn-sync-now" class="action-btn primary-btn">
+                    <span>⚡ SYNC NOW</span>
+                </button>
+            </div>
+
+            <!-- Live Logs Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-label">ACTIVITY LOG</span>
+                    <button id="btn-refresh-log" class="icon-btn" title="Refresh">↻</button>
+                </div>
+                <pre id="log-console" class="log-console">Loading log output...</pre>
+            </div>
+        </main>
+
+        <!-- Tab 2: Settings -->
+        <main id="tab-settings" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-label">VAULT CONFIGURATION</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="select-vault">DETECTED OBSIDIAN VAULTS</label>
+                    <select id="select-vault" class="input-select">
+                        <option value="">Scanning vaults...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="input-notes">NOTES INBOX PATH</label>
+                    <input type="text" id="input-notes" class="input-text" placeholder="/storage/emulated/0/.../00-Zettelkasten">
+                </div>
+
+                <div class="form-group">
+                    <label for="input-attachments">MEDIA ATTACHMENTS PATH</label>
+                    <input type="text" id="input-attachments" class="input-text" placeholder="/storage/emulated/0/.../99-index/Files">
+                </div>
+
+                <div class="form-group">
+                    <label for="select-format">FILENAME TIMESTAMP FORMAT</label>
+                    <select id="select-format" class="input-select">
+                        <option value="%Y-%m-%d %H.%M">YYYY-MM-DD HH.mm (Cross-Platform Recommended)</option>
+                        <option value="%Y-%m-%d-%H%M">YYYY-MM-DD-HHmm (Dash Separator)</option>
+                        <option value="%Y-%m-%d">YYYY-MM-DD (Date Only)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="input-tag">DEFAULT TAG</label>
+                    <input type="text" id="input-tag" class="input-text" placeholder="inbox/essential-space">
+                </div>
+
+                <div class="btn-group">
+                    <button id="btn-save-config" class="action-btn primary-btn">💾 SAVE SETTINGS</button>
+                    <button id="btn-reset-history" class="action-btn secondary-btn">🔄 RE-SYNC ALL PAST NOTES</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Tab 3: About -->
+        <main id="tab-about" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-label">ABOUT THIS ENGINE</span>
+                </div>
+                <div class="about-text">
+                    <p><strong>Essential Sync</strong> is an ultra-lightweight, zero-battery bridge for Nothing OS.</p>
+                    <ul class="feature-list">
+                        <li><strong>100% Read-Only Safety:</strong> Uses Snap-to-RAM snapshotting. Never writes to or alters Nothing OS databases.</li>
+                        <li><strong>Event-Driven:</strong> Driven by Linux <code>inotify</code>. Consumes 0.0% CPU and zero battery while idle.</li>
+                        <li><strong>Native Obsidian Format:</strong> Extracts text, images (.webp), audio recordings (.wav), and AI transcripts cleanly into Markdown.</li>
+                    </ul>
+                    <hr class="divider">
+                    <div class="about-footer">
+                        <span>Developed by <strong>Melih Ak (@m24ih)</strong></span>
+                        <a href="https://github.com/m24ih/nothing-essential-sync" target="_blank" class="link-btn">GitHub Repository</a>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer / Notification Toast -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

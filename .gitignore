@@ -1,3 +1,4 @@
 bin/sqlite3
 *.log
+*.zip
 .DS_Store

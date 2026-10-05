@@ -17,9 +17,17 @@ SOURCE_DB_DIR="/data/data/com.nothing.ntessentialspace/databases"
 SOURCE_DB="${SOURCE_DB_DIR}/essential_space_database"
 SOURCE_FILES_DIR="/data/data/com.nothing.ntessentialspace/files"
 
-DEST_VAULT="/storage/emulated/0/Sync/Obsidian-Vaults/Personal-Obsidian"
-DEST_NOTES="${DEST_VAULT}/00-Zettelkasten"
-DEST_ATTACHMENTS="${DEST_VAULT}/99-index/Files"
+# Konfigürasyon Yükleme
+CONFIG_FILE="${BASE_DIR}/config.env"
+if [ -f "${CONFIG_FILE}" ]; then
+    # shellcheck disable=SC1090
+    . "${CONFIG_FILE}"
+fi
+
+DEST_NOTES="${DEST_NOTES:-/storage/emulated/0/Documents/EssentialSpaceNotes/00-Zettelkasten}"
+DEST_ATTACHMENTS="${DEST_ATTACHMENTS:-/storage/emulated/0/Documents/EssentialSpaceNotes/attachments}"
+TIME_FORMAT="${TIME_FORMAT:-%Y-%m-%d %H.%M}"
+NOTE_TAG="${NOTE_TAG:-inbox/essential-space}"
 
 TMP_DIR="/data/local/tmp/essential_snap_$$"
 
@@ -62,7 +70,7 @@ if [ -f "${STATE_FILE}" ]; then
 fi
 
 # 4. Yeni veya henüz senkronize edilmemiş kartları çek
-CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, strftime('%Y-%m-%d %H.%M', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 ORDER BY create_time ASC;")
+CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 ORDER BY create_time ASC;")
 
 if [ -z "${CARDS}" ]; then
     # Yeni kart yok
@@ -133,7 +141,7 @@ id: ${CARD_ID}
 type: ${CARD_TYPE}
 created: ${DATE_ISO}
 tags:
-  - inbox/essential-space
+  - ${NOTE_TAG}
 ---
 
 # ${DISPLAY_TITLE}

@@ -1,58 +1,132 @@
-# Nothing Phone Essential Space -> Obsidian One-Way Sync Engine
+# Nothing Essential Space to Obsidian Sync
 
-Nothing OS'in Essential Key ile alınan tüm notları, ses kayıtlarını ve ekran görüntülerini izole bir biçimde okuyup Obsidian `00-Zettelkasten` inbox klasörüne ve `99-index/Files` medya dizinine aktaran saf Unix tabanlı arka plan senkronizasyon servisi.
-
-## 📌 Özellikler ve Güvenlik İlkeleri
-
-- **%100 Salt-Okunur (Read-Only) Güvencesi:** Nothing OS'in canlı SQLite veritabanı kütüğüne hiçbir harici sorgu değmez. İşlem öncesi anlık kopyalama (`/data/local/tmp` RAM diskine) yapılır ve sorgular bu geçici kopya üzerinde çalıştırılır. Essential Space veritabanında veya dosyalarında hiçbir yazma, silme veya değiştirme yapılmaz.
-- **Sıfır Pil ve İşlemci Tüketimi (Event-Driven):** Polling (sürekli uyanık kalıp sorgu atma) yerine Android'in çekirdek düzeyindeki `toybox inotifyd` mekanizmasını kullanır. Yalnızca veritabanına yeni bir not yazıldığında milisaniyeler içinde uyanır ve işi bitince uykuya döner.
-- **Yedekli Fallback:** Olası kaçak durumlar için arka planda 15 dakikalık periyodik kontrol döngüsü bulunur.
-- **Bağımsız Statik `sqlite3`:** Android sisteminde `sqlite3` CLI aracı bulunmadığından, Android NDK r27 ile derlenmiş bağımsız statik ARM64 `sqlite3` ikili dosyası kullanılır.
-- **Multimodal Destek:**
-  - Metin notları (`TEXT`, `NOTE_TEXT`)
-  - Ekran görüntüleri (`IMAGE` - `.webp` formatında `99-index/Files/` altına kopyalanır)
-  - Ses kayıtları (`AUDIO` - `.wav` formatında `99-index/Files/` altına kopyalanır)
-  - AI Ses Transkripsiyonu (`TRANSCRIPTION` - Essential Space'in ürettiği metin dökümü)
-  - AI Özeti ve Başlık (`cards.summary` ve `cards.title`)
-- **Hayalet Not (Ghost Note) Koruması:** `last_sync_time.txt` durum takibi sayesinde bilgisayarda Obsidian'dan notlar silinse veya başka klasörlere taşınsa dahi eski notlar asla tekrar üretilmez.
+An ultra-lightweight, zero-battery, event-driven bridge for **Nothing OS** that seamlessly syncs quick captures, voice notes, screenshots, and AI summaries from **Essential Space** into **Obsidian** (or any Markdown vault) with a native Nothing-style WebUI.
 
 ---
 
-## 📂 Dosya Mimarisi
+## 🌟 Key Highlights
 
-### Cihaz İçi Konumlar (Nothing Phone 3a)
-- `/data/adb/essential-sync/`:
-  - `bin/sqlite3`: Statik ARM64 ikili dosyası (chmod 755).
-  - `sync.sh`: Ana iş mantığını yürüten shell betiği.
-  - `last_sync_time.txt`: En son başarıyla senkronize edilen kartın unix zaman damgası.
-  - `sync.log`: Senkronizasyon kayıtları.
-  - `daemon.log`: Servis ve inotifyd logları.
-- `/data/adb/service.d/essential_sync.sh`: KernelSU otomatik başlatıcısı (Boot tamamlandığında arka planda inotifyd'yi çalıştırır).
-
-### Hedef Obsidian Vault Konumları
-- Notlar: `/storage/emulated/0/Sync/Obsidian-Vaults/Personal-Obsidian/00-Zettelkasten/`
-- Medyalar: `/storage/emulated/0/Sync/Obsidian-Vaults/Personal-Obsidian/99-index/Files/`
+- **🔒 100% Read-Only Safety (Snap-to-RAM):**  
+  Never touches or locks Nothing OS's live SQLite database. Queries run strictly on temporary RAM snapshots (`/data/local/tmp`). Your Essential Space data is never altered, deleted, or written to.
+- **⚡ Zero Battery & CPU (Event-Driven):**  
+  No polling or background battery drain. Uses Linux kernel `toybox inotifyd` to sleep at 0.0% CPU and wake up within milliseconds only when a new capture is saved.
+- **📱 Nothing OS Aesthetic WebUI:**  
+  Built with Nothing's signature monochrome dot-matrix (N-Dot) design. Works natively in **KernelSU**, **APatch**, and **MMRL (Magisk)**.
+- **✨ Rich Multimodal Extraction:**  
+  - 📝 **Notes & Captions:** Clean Markdown with YAML frontmatter.
+  - 🎙️ **Voice Notes & AI Transcripts:** Audio files (`.wav`) copied to attachments + AI speech-to-text transcription automatically included.
+  - 🖼️ **Screenshots:** WebP screenshots copied to vault attachments and embedded (`![[image.webp]]`).
+  - 🧠 **AI Summaries:** Nothing AI summaries rendered in Obsidian callouts (`> [!summary]`).
+- **🛡️ Ghost Note Protection:**  
+  State-tracking timestamp ensures that when you triage, move, or delete notes on your PC or tablet, old notes are never resurrected.
+- **🧩 Universal Root Compatibility:**  
+  Works with KernelSU, KernelSU-Next, Magisk, and APatch.
 
 ---
 
-## 🚀 Yönetim ve Komutlar
+## 📸 WebUI Preview (Nothing OS Design)
 
-### Manuel Tetikleme (Test için)
-```bash
-adb shell "su -c 'sh /data/adb/essential-sync/sync.sh'"
-```
+When installed as a module, open **KernelSU Manager** or **MMRL** and click **WebUI**:
 
-### Logları Canlı İzleme
-```bash
-adb shell "su -c 'tail -f /data/adb/essential-sync/sync.log'"
-```
+- **Dashboard:** Live daemon status (`ACTIVE` / `STOPPED`), total synced note counter, last sync time, instant `⚡ SYNC NOW` button, and live activity log console.
+- **Settings:** Auto-detects installed `.obsidian` vaults, auto-fills attachments directory from `.obsidian/app.json`, configures timestamp formats, custom tags, and offers a `🔄 RE-SYNC ALL PAST NOTES` button.
 
-### Servis Durumunu Kontrol Etme
-```bash
-adb shell "su -c 'ps -ef | grep -E \"inotifyd|essential_sync\" | grep -v grep'"
-```
+---
 
-### Yeniden Dağıtım (Deploy)
+## 📦 Installation
+
+### Method 1: Magisk / KernelSU / APatch Flashable Module (Recommended)
+1. Download the latest `nothing-essential-sync-v1.0.0.zip` from [Releases](https://github.com/m24ih/nothing-essential-sync/releases).
+2. Open **KernelSU**, **APatch**, or **Magisk** app on your phone.
+3. Tap **Modules** -> **Install from storage** -> Select the `.zip` file.
+4. Reboot or open the module's **WebUI** in KernelSU/MMRL to configure your vault paths!
+
+### Method 2: ADB Deployment (From PC)
+Connect your Nothing Phone via USB or Wireless ADB with Root enabled:
 ```bash
+git clone https://github.com/m24ih/nothing-essential-sync.git
+cd nothing-essential-sync
 ./deploy.sh
 ```
+
+### Method 3: Direct Phone Terminal (Termux / Root Shell)
+If you already have root on your phone:
+```bash
+su
+cd /data/adb/essential-sync
+sh setup.sh
+```
+
+---
+
+## ⚙️ Configuration (`config.env`)
+
+Settings are stored in `/data/adb/essential-sync/config.env` and can be edited via WebUI, `setup.sh`, or manually:
+
+```sh
+# Target Obsidian / Markdown inbox directory
+DEST_NOTES="/storage/emulated/0/Sync/Obsidian-Vaults/Personal-Obsidian/00-Zettelkasten"
+
+# Target attachments directory (for images and voice recordings)
+DEST_ATTACHMENTS="/storage/emulated/0/Sync/Obsidian-Vaults/Personal-Obsidian/99-index/Files"
+
+# Filename timestamp format (SQLite strftime format)
+TIME_FORMAT="%Y-%m-%d %H.%M"
+
+# Default tag added to note frontmatter
+NOTE_TAG="inbox/essential-space"
+```
+
+---
+
+## 📝 Generated Note Example
+
+```markdown
+---
+id: 2372edbf-e772-46bf-8334-cada555f7c87
+type: IMAGE
+created: 2026-10-03 16:24:45
+tags:
+  - inbox/essential-space
+---
+
+# Calibre-web Obsidian Plugin
+
+> [!summary] AI Özeti
+> New Calibre-web plugin for Obsidian enhances reading and note-taking with PDF/EPUB support.
+
+### 🎙️ Ses Dökümü
+I crown the Cops and downpillaging the dust once again.
+
+### 🎧 Ses Kaydı
+![[52687339-a6f4-4f60-a1ed-49f235bcb851.wav]]
+
+### 🖼️ Ekran Görüntüsü
+![[014f109e-f437-4a97-9958-7a51865f564f.webp]]
+```
+
+---
+
+## 🛠️ Building the Module ZIP
+
+To build a fresh flashable ZIP module from source:
+```bash
+./make_module.sh
+```
+This generates `nothing-essential-sync-v1.0.0.zip` ready to flash.
+
+---
+
+## 🗑️ Uninstallation
+
+- If installed as a module: simply remove it via KernelSU / Magisk / APatch Manager.
+- Or run in terminal:
+  ```bash
+  su -c 'sh /data/adb/essential-sync/uninstall.sh'
+  ```
+*Note: Your Obsidian notes and media attachments are never deleted or affected.*
+
+---
+
+## 📜 License
+MIT License. Created by [Melih Ak (@m24ih)](https://github.com/m24ih).
