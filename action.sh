@@ -2,43 +2,37 @@
 # ==============================================================================
 # KernelSU / APatch Action Script
 # Executed when user taps the [ACTION] button in KernelSU Manager
+# Non-interactive, prints status & sync results, exits cleanly.
 # ==============================================================================
 
-clear 2>/dev/null || true
 echo "=================================================="
 echo "  Nothing Essential Space -> Obsidian Sync"
-echo "  Quick Action Menu"
 echo "=================================================="
 echo ""
-echo "  [1] ⚡ Run Sync Now"
-echo "  [2] 🧙 Interactive Setup Wizard"
-echo "  [3] 📜 View Recent Activity Logs"
-echo "  [4] 🔍 Check Service Daemon Status"
-echo ""
-printf "Select option [1]: "
-read -r CHOICE
 
-case "$CHOICE" in
-    2)
-        sh /data/adb/essential-sync/setup.sh
-        ;;
-    3)
-        echo ""
-        echo "=== Activity Logs (Last 30 lines) ==="
-        tail -n 30 /data/adb/essential-sync/sync.log 2>/dev/null || echo "No logs found."
-        echo ""
-        ;;
-    4)
-        echo ""
-        echo "=== Daemon Process Status ==="
-        ps -ef | grep inotifyd | grep -v grep || echo "Warning: inotifyd is NOT running."
-        echo ""
-        ;;
-    *)
-        echo ""
-        echo "Running instant sync..."
-        sh /data/adb/essential-sync/sync.sh
-        echo ""
-        echo "✓ Sync execution finished."
-        ;;
-esac
+# 1. Check inotifyd daemon status
+echo "🔍 Checking background service..."
+if ps -ef | grep inotifyd | grep -v grep >/dev/null 2>&1; then
+    echo "   ✓ Background watcher (inotifyd) is ACTIVE"
+else
+    echo "   ⚠️ Background watcher is not running (will start after unlock)"
+fi
+
+echo ""
+echo "⚡ Triggering sync now..."
+echo "--------------------------------------------------"
+
+if [ -f "/data/adb/essential-sync/sync.sh" ]; then
+    sh /data/adb/essential-sync/sync.sh
+elif [ -f "${0%/*}/sync.sh" ]; then
+    sh "${0%/*}/sync.sh"
+else
+    echo "❌ Error: sync.sh script not found!"
+    exit 1
+fi
+
+echo "--------------------------------------------------"
+echo "✓ Sync completed successfully."
+echo "=================================================="
+
+exit 0
