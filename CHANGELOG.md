@@ -2,6 +2,19 @@
 
 All notable changes to the **Nothing Essential Sync** module will be documented in this file.
 
+## [v1.2.0] - 2026-10-06
+
+### Added
+- **Native Obsidian Audio Player Support (.m4a)**: Essential Record audio captures (`.aac`) are automatically converted to `.m4a` on copy without re-encoding, activating Obsidian's native HTML5 audio playback widget.
+- **Rich Multimodal Extraction (card_analysis)**: Fully extracts and formats meeting key topics (`MEETING_MAIN_TOPIC`, `MEETING_KEY_TOPIC_ANALYSIS`), process bullet points (`BULLET_POINTS`), and extracted metadata (`INFO_EXTRACT`) into Markdown callouts.
+- **Graceful AI Wait**: Reliably waits for on-device Nothing AI pipeline to complete title, summary, and audio transcription before writing Obsidian notes.
+- **Live Progress Logging**: Real-time waiting indicators (`⏳ Nothing AI analizi bekleniyor...`) appear in WebUI Dashboard console until analysis finishes.
+- **Automatic Placeholder Cleanup**: Seamlessly deletes any temporary placeholder notes when the finalized AI-analyzed version is synced.
+
+### Fixed
+- **Race Condition on Live Captures**: Fixed issue where notes were synced before Nothing AI finished generating title and summaries.
+- **Essential Record Audio Missing**: Fixed resource query to properly capture `RECORDING` raw_types alongside `AUDIO`.
+
 ## [v1.1.2] - 2026-10-06
 
 ### Fixed

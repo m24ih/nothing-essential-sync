@@ -41,8 +41,8 @@ sh "${SYNC_SCRIPT}" >> "${BASE_DIR}/daemon.log" 2>&1
 # 6. inotify ile anlık olay tetikleyiciyi arka planda başlat (0% CPU, anlık uyandırma)
 toybox inotifyd "${SYNC_SCRIPT}" "${DB_DIR}:wc" >> "${BASE_DIR}/daemon.log" 2>&1 &
 
-# 7. Dayanıklılık için 15 dakikalık periyodik fallback döngüsü
+# 7. Dayanıklılık için 2 dakikalık periyodik fallback döngüsü
 while true; do
-    sleep 900
+    sleep 120
     sh "${SYNC_SCRIPT}" >> "${BASE_DIR}/daemon.log" 2>&1
 done

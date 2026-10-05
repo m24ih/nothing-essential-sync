@@ -60,6 +60,9 @@ case "${DETECTED_LANG}" in
         STR_DEFAULT_TITLE="Essential Not"
         STR_SYNCED="Senkronize edildi"
         STR_COMPLETED="Senkronizasyon tamamlandı. Durum güncellendi"
+        STR_KEY_TOPICS="Ana Konu"
+        STR_ANALYSIS="Analiz & Detaylar"
+        STR_EXTRACTED_INFO="Önemli Bilgi"
         ;;
     de)
         STR_SUMMARY="KI-Zusammenfassung"
@@ -70,6 +73,9 @@ case "${DETECTED_LANG}" in
         STR_DEFAULT_TITLE="Essential Notiz"
         STR_SYNCED="Synchronisiert"
         STR_COMPLETED="Synchronisierung abgeschlossen. Status aktualisiert"
+        STR_KEY_TOPICS="Hauptthema"
+        STR_ANALYSIS="Analyse & Details"
+        STR_EXTRACTED_INFO="Wichtige Information"
         ;;
     fr)
         STR_SUMMARY="Résumé IA"
@@ -80,6 +86,9 @@ case "${DETECTED_LANG}" in
         STR_DEFAULT_TITLE="Note Essential"
         STR_SYNCED="Synchronisé"
         STR_COMPLETED="Synchronisation terminée. État mis à jour"
+        STR_KEY_TOPICS="Sujet principal"
+        STR_ANALYSIS="Analyse & Détails"
+        STR_EXTRACTED_INFO="Information importante"
         ;;
     es)
         STR_SUMMARY="Resumen de IA"
@@ -90,6 +99,9 @@ case "${DETECTED_LANG}" in
         STR_DEFAULT_TITLE="Nota Essential"
         STR_SYNCED="Sincronizado"
         STR_COMPLETED="Sincronización completada. Estado actualizado"
+        STR_KEY_TOPICS="Tema principal"
+        STR_ANALYSIS="Análisis & Detalles"
+        STR_EXTRACTED_INFO="Información importante"
         ;;
     *)
         # Default (en)
@@ -101,6 +113,9 @@ case "${DETECTED_LANG}" in
         STR_DEFAULT_TITLE="Essential Note"
         STR_SYNCED="Synced"
         STR_COMPLETED="Sync completed. State updated"
+        STR_KEY_TOPICS="Key Topics"
+        STR_ANALYSIS="Detailed Analysis"
+        STR_EXTRACTED_INFO="Key Information"
         ;;
 esac
 
@@ -165,6 +180,44 @@ if [ -z "${CARDS}" ]; then
     exit 0
 fi
 
+# AI analizinin bitmesini bekleme mekanizması (Graceful Wait):
+# Nothing OS görsel notları ~6-18 saniyede, ses kayıtlarını (Essential Record) ~60-80 saniyede analiz eder.
+# Kart henüz analiz ediliyorsa (summary veya title henüz boşsa), AI bitene kadar bekle.
+MAX_WAIT_SECONDS=150
+POLL_INTERVAL=2
+ELAPSED=0
+
+while [ ${ELAPSED} -lt ${MAX_WAIT_SECONDS} ]; do
+    PENDING_COUNT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT count(*) FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 AND ai_generate = 1 AND (summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
+    if [ "${PENDING_COUNT}" = "0" ] || [ -z "${PENDING_COUNT}" ]; then
+        break
+    fi
+
+    # Her 6 saniyede bir log bildirimi üret (WebUI Dashboard'da canlı akar)
+    if [ $((ELAPSED % 6)) -eq 0 ]; then
+        PENDING_TYPES=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT group_concat(type) FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 AND ai_generate = 1 AND (summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
+        log "⏳ Nothing AI analizi bekleniyor (${PENDING_TYPES}) [${ELAPSED}s/${MAX_WAIT_SECONDS}s]..."
+    fi
+
+    sleep ${POLL_INTERVAL}
+    ELAPSED=$((ELAPSED + POLL_INTERVAL))
+
+    # Güncel veritabanı durumunu RAM snap kopyasına yenile
+    cp "${SOURCE_DB}" "${SNAP_DB}" 2>/dev/null
+    [ -f "${SOURCE_DB}-wal" ] && cp "${SOURCE_DB}-wal" "${TMP_DIR}/snap.db-wal" 2>/dev/null
+    [ -f "${SOURCE_DB}-shm" ] && cp "${SOURCE_DB}-shm" "${TMP_DIR}/snap.db-shm" 2>/dev/null
+done
+
+if [ ${ELAPSED} -gt 0 ]; then
+    if [ ${ELAPSED} -ge ${MAX_WAIT_SECONDS} ]; then
+        log "⚠️ Nothing AI bekleme süresi doldu (${MAX_WAIT_SECONDS}s). Kartlar mevcut haliyle senkronize ediliyor..."
+    else
+        log "✨ Nothing AI analizi tamamlandı (${ELAPSED}s)! Senkronizasyon başlatılıyor..."
+    fi
+    # Son güncel kart listesini tekrar çek
+    CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 ORDER BY create_time ASC;")
+fi
+
 log "Yeni kartlar bulundu. Senkronizasyon başlatılıyor..."
 SYNC_COUNT=0
 CURRENT_MAX_TIME=${LAST_SYNC}
@@ -179,7 +232,7 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME DATE_STR DATE_ISO; d
     NOTE_TEXT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type IN ('TEXT', 'NOTE_TEXT') LIMIT 1;")
     TRANSCRIPTION=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type = 'TRANSCRIPTION' LIMIT 1;")
     IMAGE_URI=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type = 'IMAGE' LIMIT 1;")
-    AUDIO_URI=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type = 'AUDIO' LIMIT 1;")
+    AUDIO_URI=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type IN ('AUDIO', 'RECORDING') LIMIT 1;")
 
     # Medya kopyalama (Görsel)
     IMG_FILENAME=""
@@ -198,6 +251,12 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME DATE_STR DATE_ISO; d
         AUDIO_SRC=$(echo "${AUDIO_URI}" | sed 's|^file://||')
         if [ -f "${AUDIO_SRC}" ]; then
             AUDIO_FILENAME=$(basename "${AUDIO_SRC}")
+            # Obsidian .aac uzantılı dosyaları yerel ses oynatıcısında oynatamaz.
+            # Ancak Nothing OS bu kayıtları ISO MP42 (M4A) formatında üretir.
+            # Uzantıyı .m4a yaparak Obsidian'da doğrudan oynatılabilir (HTML5 audio) hale getiriyoruz.
+            case "${AUDIO_FILENAME}" in
+                *.aac) AUDIO_FILENAME="${AUDIO_FILENAME%.aac}.m4a" ;;
+            esac
             cp -f "${AUDIO_SRC}" "${DEST_ATTACHMENTS}/${AUDIO_FILENAME}" 2>/dev/null
             chmod 660 "${DEST_ATTACHMENTS}/${AUDIO_FILENAME}" 2>/dev/null
         fi
@@ -207,6 +266,16 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME DATE_STR DATE_ISO; d
     CLEAN_TITLE=$(echo "${TITLE}" | tr '/\\:*?"<>|#' '_' | tr '\n\r' ' ' | sed 's/^[ .]*//; s/[ .]*$//' | cut -c 1-50)
     if [ -z "${CLEAN_TITLE}" ]; then
         CLEAN_TITLE="${STR_DEFAULT_TITLE}"
+    fi
+
+    # Varsa önceki geçici/isimsiz placeholder dosyayı temizle (örn. '2026-10-06 02.24 - Essential Note.md')
+    if [ "${CLEAN_TITLE}" != "${STR_DEFAULT_TITLE}" ]; then
+        for OLD_NAME in "${DATE_STR} - ${STR_DEFAULT_TITLE}.md" "${DATE_STR} - Essential Note.md" "${DATE_STR} - Essential Not.md"; do
+            OLD_FILE="${DEST_NOTES}/${OLD_NAME}"
+            if [ -f "${OLD_FILE}" ] && grep -q "${CARD_ID}" "${OLD_FILE}" 2>/dev/null; then
+                rm -f "${OLD_FILE}" 2>/dev/null
+            fi
+        done
     fi
 
     TARGET_FILENAME="${DATE_STR} - ${CLEAN_TITLE}.md"
@@ -275,6 +344,73 @@ EOF
 EOF
     fi
 
+    # AI Analiz Bölümleri (BULLET_POINTS, INFO_EXTRACT, MEETING_*, ANSWER, FREEFORM)
+    ANALYSIS_IDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_analysis_id FROM card_analysis WHERE card_id = '${CARD_ID}' ORDER BY card_analysis_id ASC;")
+    if [ -n "${ANALYSIS_IDS}" ]; then
+        for AID in ${ANALYSIS_IDS}; do
+            [ -z "${AID}" ] && continue
+            A_TYPE=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT raw_type FROM card_analysis WHERE card_analysis_id = '${AID}';")
+            A_TITLE=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT CASE WHEN json_valid(metadata) THEN coalesce(json_extract(metadata, '$.title'), '') ELSE '' END FROM card_analysis WHERE card_analysis_id = '${AID}';")
+            A_CONTENT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT CASE WHEN json_valid(metadata) THEN coalesce(json_extract(metadata, '$.bulletPointItem'), json_extract(metadata, '$.content'), json_extract(metadata, '$.detailed_summary'), json_extract(metadata, '$.extractedInformation'), '') ELSE metadata END FROM card_analysis WHERE card_analysis_id = '${AID}';")
+            A_TIME=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT CASE WHEN json_valid(metadata) THEN coalesce(json_extract(metadata, '$.timestamp_reference'), '') ELSE '' END FROM card_analysis WHERE card_analysis_id = '${AID}';")
+
+            [ -z "${A_CONTENT}" ] && continue
+
+            case "${A_TYPE}" in
+                BULLET_POINTS)
+                    [ -z "${A_TITLE}" ] && A_TITLE="${STR_ANALYSIS}"
+                    FORMATTED_BULLETS=$(echo "${A_CONTENT}" | sed 's/^[[:space:]]*/- /')
+                    cat <<EOF >> "${TMP_NOTE}"
+
+### 📌 ${A_TITLE}
+${FORMATTED_BULLETS}
+EOF
+                    ;;
+                INFO_EXTRACT)
+                    [ -z "${A_TITLE}" ] && A_TITLE="${STR_EXTRACTED_INFO}"
+                    cat <<EOF >> "${TMP_NOTE}"
+
+> [!info] ${A_TITLE}
+> ${A_CONTENT}
+EOF
+                    ;;
+                MEETING_MAIN_TOPIC)
+                    [ -z "${A_TITLE}" ] && A_TITLE="${STR_KEY_TOPICS}"
+                    cat <<EOF >> "${TMP_NOTE}"
+
+### 🎯 ${A_TITLE}
+${A_CONTENT}
+EOF
+                    ;;
+                MEETING_KEY_TOPIC_ANALYSIS)
+                    HEADER="${A_TITLE}"
+                    [ -n "${A_TIME}" ] && HEADER="${HEADER} (${A_TIME})"
+                    [ -z "${HEADER}" ] && HEADER="${STR_ANALYSIS}"
+                    cat <<EOF >> "${TMP_NOTE}"
+
+> [!abstract] ${HEADER}
+> ${A_CONTENT}
+EOF
+                    ;;
+                MEETING_EMOTIONAL_SUMMARY|FREEFORM)
+                    [ -z "${A_TITLE}" ] && A_TITLE="${STR_SUMMARY}"
+                    cat <<EOF >> "${TMP_NOTE}"
+
+> [!note] ${A_TITLE}
+> ${A_CONTENT}
+EOF
+                    ;;
+                ANSWER)
+                    cat <<EOF >> "${TMP_NOTE}"
+
+> [!faq] Q&A
+> ${A_CONTENT}
+EOF
+                    ;;
+            esac
+        done
+    fi
+
     cat <<EOF >> "${TMP_NOTE}"
 EOF
 
@@ -289,4 +425,5 @@ EOF
 done
 
 log "${STR_COMPLETED}: $(cat "${STATE_FILE}" 2>/dev/null)"
+
 
