@@ -1,0 +1,51 @@
+name: CD / Stable Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag to build (e.g. v1.1.0)'
+        required: true
+        default: 'v1.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag_name || github.ref }}
+
+      - name: Extract Version
+        id: get_version
+        run: |
+          VERSION=$(grep "^version=" module.prop | cut -d'=' -f2)
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building release for version ${VERSION}"
+
+      - name: Set executable permissions
+        run: |
+          chmod +x make_module.sh sync.sh service.sh setup.sh action.sh bin/sqlite3
+
+      - name: Build Module ZIP
+        run: |
+          ./make_module.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: "Nothing Essential Sync ${{ steps.get_version.outputs.VERSION }}"
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+          files: nothing-essential-sync-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

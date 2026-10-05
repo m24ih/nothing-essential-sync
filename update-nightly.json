@@ -1,0 +1,6 @@
+{
+  "version": "nightly",
+  "versionCode": 99999,
+  "zipUrl": "https://github.com/m24ih/nothing-essential-sync/releases/download/nightly/nothing-essential-sync-nightly.zip",
+  "changelog": "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/CHANGELOG.md"
+}

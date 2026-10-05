@@ -1,0 +1,49 @@
+name: CI / Nightly Build
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set executable permissions
+        run: |
+          chmod +x make_module.sh sync.sh service.sh setup.sh action.sh bin/sqlite3
+
+      - name: Build Module Package
+        run: |
+          ./make_module.sh
+          # Build edilen zip'i nightly ismiyle kopyala
+          cp nothing-essential-sync-*.zip nothing-essential-sync-nightly.zip
+
+      - name: Publish or Update Nightly Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: "Nightly Build (Rolling)"
+          body: |
+            ## Nothing Essential Sync - Nightly Build
+            - **Commit:** ${{ github.sha }}
+            - **Branch:** ${{ github.ref_name }}
+            - **Built on:** ${{ github.event.head_commit.timestamp || 'Manual Dispatch' }}
+
+            > ⚠️ **Note:** Nightly builds contain bleeding-edge code and may be unstable. For daily use, prefer [Stable Releases](https://github.com/${{ github.repository }}/releases).
+          draft: false
+          prerelease: true
+          files: nothing-essential-sync-nightly.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

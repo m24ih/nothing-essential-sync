@@ -264,41 +264,46 @@ if (resetBtn) {
 // -----------------------------------------------------------------------------
 // Software Update Logic (KernelSU, Magisk, MMRL)
 // -----------------------------------------------------------------------------
-const CURRENT_VERSION = "v1.0.0";
-const CURRENT_VERSION_CODE = 100;
-const UPDATE_JSON_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update.json";
+const CURRENT_VERSION = "v1.1.0";
+const CURRENT_VERSION_CODE = 110;
+const STABLE_UPDATE_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update.json";
+const NIGHTLY_UPDATE_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update-nightly.json";
 let pendingUpdate = null;
 
 const checkUpdateBtn = document.getElementById("btn-check-update");
 const installUpdateBtn = document.getElementById("btn-install-update");
 const updateBadge = document.getElementById("update-status-badge");
 const updateInfo = document.getElementById("update-info-text");
+const channelSelect = document.getElementById("select-channel");
 
 if (checkUpdateBtn) {
     checkUpdateBtn.addEventListener("click", async () => {
         checkUpdateBtn.textContent = "CHECKING...";
         checkUpdateBtn.disabled = true;
+        const channel = channelSelect ? channelSelect.value : "stable";
+        const targetUrl = channel === "nightly" ? NIGHTLY_UPDATE_URL : STABLE_UPDATE_URL;
+
         try {
-            const res = await fetch(`${UPDATE_JSON_URL}?t=${Date.now()}`);
+            const res = await fetch(`${targetUrl}?t=${Date.now()}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
 
-            if (data.versionCode > CURRENT_VERSION_CODE) {
+            if (channel === "nightly" || data.versionCode > CURRENT_VERSION_CODE) {
                 pendingUpdate = data;
                 if (updateBadge) {
                     updateBadge.className = "badge badge-active";
-                    updateBadge.textContent = `UPDATE: ${data.version}`;
+                    updateBadge.textContent = `${channel.toUpperCase()}: ${data.version}`;
                 }
                 if (updateInfo) {
-                    updateInfo.textContent = `New version ${data.version} available!`;
+                    updateInfo.textContent = `New ${channel} release available (${data.version})!`;
                 }
                 if (installUpdateBtn) {
                     installUpdateBtn.classList.remove("hidden");
                 }
-                showToast(`New update ${data.version} found!`);
+                showToast(`New ${channel} update found!`);
             } else {
                 if (updateInfo) {
-                    updateInfo.textContent = `You are on the latest version (${CURRENT_VERSION}).`;
+                    updateInfo.textContent = `You are on the latest stable version (${CURRENT_VERSION}).`;
                 }
                 showToast("You have the latest version!");
             }
