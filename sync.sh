@@ -61,6 +61,7 @@ case "${DETECTED_LANG}" in
         STR_KEY_TOPICS="Ana Konu"
         STR_ANALYSIS="Analiz & Detaylar"
         STR_EXTRACTED_INFO="Önemli Bilgi"
+        STR_TASKS="Görevler"
         LOG_WARN_NO_DB="UYARI: Essential Space veritabanı bulunamadı"
         LOG_ERR_NO_SQLITE="HATA: sqlite3 ikili dosyası bulunamadı veya çalıştırılamıyor"
         LOG_CARDS_FOUND="Yeni kartlar bulundu. Senkronizasyon başlatılıyor..."
@@ -83,6 +84,7 @@ case "${DETECTED_LANG}" in
         STR_KEY_TOPICS="Hauptthema"
         STR_ANALYSIS="Analyse & Details"
         STR_EXTRACTED_INFO="Wichtige Information"
+        STR_TASKS="Aufgaben"
         LOG_WARN_NO_DB="WARNUNG: Essential Space-Datenbank nicht gefunden"
         LOG_ERR_NO_SQLITE="FEHLER: sqlite3-Binärdatei nicht gefunden oder nicht ausführbar"
         LOG_CARDS_FOUND="Neue Karten gefunden. Synchronisierung wird gestartet..."
@@ -105,6 +107,7 @@ case "${DETECTED_LANG}" in
         STR_KEY_TOPICS="Sujet principal"
         STR_ANALYSIS="Analyse & Détails"
         STR_EXTRACTED_INFO="Information importante"
+        STR_TASKS="Tâches"
         LOG_WARN_NO_DB="AVERTISSEMENT : Base de données Essential Space introuvable"
         LOG_ERR_NO_SQLITE="ERREUR : Exécutable sqlite3 introuvable ou non exécutable"
         LOG_CARDS_FOUND="Nouvelles cartes trouvées. Démarrage de la synchronisation..."
@@ -127,6 +130,7 @@ case "${DETECTED_LANG}" in
         STR_KEY_TOPICS="Tema principal"
         STR_ANALYSIS="Análisis & Detalles"
         STR_EXTRACTED_INFO="Información importante"
+        STR_TASKS="Tareas"
         LOG_WARN_NO_DB="ADVERTENCIA: Base de datos Essential Space no encontrada"
         LOG_ERR_NO_SQLITE="ERROR: Binario sqlite3 no encontrado o no ejecutable"
         LOG_CARDS_FOUND="Nuevas tarjetas encontradas. Iniciando sincronización..."
@@ -150,6 +154,7 @@ case "${DETECTED_LANG}" in
         STR_KEY_TOPICS="Key Topics"
         STR_ANALYSIS="Detailed Analysis"
         STR_EXTRACTED_INFO="Key Information"
+        STR_TASKS="Tasks"
         LOG_WARN_NO_DB="WARNING: Essential Space database not found"
         LOG_ERR_NO_SQLITE="ERROR: sqlite3 binary not found or not executable"
         LOG_CARDS_FOUND="New cards found. Starting sync..."
@@ -232,9 +237,9 @@ for PH in "${DEST_NOTES}"/*" - ${STR_DEFAULT_TITLE}.md" "${DEST_NOTES}"/*" - Ess
 done
 
 if [ -n "${PLACEHOLDER_IDS}" ]; then
-    QUERY_FILTER="((create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC}) OR card_id IN (${PLACEHOLDER_IDS}))"
+    QUERY_FILTER="((create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC} OR card_id IN (SELECT card_id FROM card_events WHERE update_time > ${LAST_SYNC} AND deleted = 0)) OR card_id IN (${PLACEHOLDER_IDS}))"
 else
-    QUERY_FILTER="(create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC})"
+    QUERY_FILTER="(create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC} OR card_id IN (SELECT card_id FROM card_events WHERE update_time > ${LAST_SYNC} AND deleted = 0))"
 fi
 
 # Yeni veya henüz güncellenmiş/çözümlenmemiş kartları çek
@@ -388,6 +393,30 @@ ${NOTE_TEXT}
 EOF
     fi
 
+    # Görevler / Yapılacaklar (card_events)
+    EVENT_ROWS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT \"check\", CASE WHEN content IS NOT NULL AND trim(content) != '' THEN content ELSE title END, time, strftime('%Y-%m-%d', time/1000, 'unixepoch', 'localtime'), strftime('%H:%M', time/1000, 'unixepoch', 'localtime') FROM card_events WHERE card_id = '${CARD_ID}' AND deleted = 0 ORDER BY card_event_id ASC;")
+    if [ -n "${EVENT_ROWS}" ]; then
+        cat <<EOF >> "${TMP_NOTE}"
+
+### ✅ ${STR_TASKS}
+EOF
+        NOTE_DAY=$(echo "${DATE_ISO}" | cut -d' ' -f1)
+        echo "${EVENT_ROWS}" | while IFS='|' read -r EV_CHECK EV_TEXT EV_TIME EV_DATE EV_HM; do
+            [ -z "${EV_TEXT}" ] && continue
+            TASK_BOX="[ ]"
+            [ "${EV_CHECK}" = "1" ] && TASK_BOX="[x]"
+            TIME_SUFFIX=""
+            if [ -n "${EV_TIME}" ] && [ "${EV_TIME}" -gt 0 ] 2>/dev/null; then
+                if [ "${EV_DATE}" = "${NOTE_DAY}" ]; then
+                    TIME_SUFFIX=" ⏰ ${EV_HM}"
+                else
+                    TIME_SUFFIX=" 📅 ${EV_DATE} ${EV_HM}"
+                fi
+            fi
+            echo "- ${TASK_BOX} ${EV_TEXT}${TIME_SUFFIX}" >> "${TMP_NOTE}"
+        done
+    fi
+
     if [ -n "${TRANSCRIPTION}" ]; then
         cat <<EOF >> "${TMP_NOTE}"
 
@@ -489,11 +518,15 @@ EOF
     log "${LOG_SYNCED}: ${TARGET_FILENAME}"
 
     # En yüksek zaman damgasını güncelle
+    MAX_EV_TIME=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT coalesce(max(update_time), 0) FROM card_events WHERE card_id = '${CARD_ID}' AND deleted = 0;")
     NEW_STATE="${UPDATE_TIME}"
     if [ -z "${NEW_STATE}" ] || [ "${NEW_STATE}" = "0" ]; then
         NEW_STATE="${CREATE_TIME}"
     elif [ -n "${CREATE_TIME}" ] && [ "${CREATE_TIME}" -gt "${NEW_STATE}" ] 2>/dev/null; then
         NEW_STATE="${CREATE_TIME}"
+    fi
+    if [ -n "${MAX_EV_TIME}" ] && [ "${MAX_EV_TIME}" -gt "${NEW_STATE}" ] 2>/dev/null; then
+        NEW_STATE="${MAX_EV_TIME}"
     fi
     if [ -n "${NEW_STATE}" ]; then
         CUR_SAVED=$(cat "${STATE_FILE}" 2>/dev/null || echo 0)

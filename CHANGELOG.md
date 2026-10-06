@@ -4,6 +4,10 @@ All notable changes to the **Nothing Essential Sync** module will be documented 
 
 ## [v1.2.1] - 2026-10-06
 
+### Added
+- **Tasks & Action Items Support (`card_events`)**: Automatically extracts Nothing OS AI tasks and reminders into native Obsidian Markdown checkboxes (`- [ ]` / `- [x]`) with formatted reminder timestamps (`⏰ HH:MM` / `📅 YYYY-MM-DD HH:MM`).
+- **Interactive Task State Synchronization**: Tracks `card_events` status changes and update times, keeping task completion states in Obsidian in sync when tasks are checked on the device.
+
 ### Fixed
 - **Pending Placeholder Auto-Resolution**: Automatically detects any existing unanalyzed placeholder notes in Obsidian (`*Essential Note.md`) and reconciles them when Nothing AI finishes.
 - **Graceful AI Wait Query**: Removed invalid `ai_generate = 1` dependency from the wait condition; correctly checks Nothing OS `analysis_state = 0` and unpopulated title/summary fields.
