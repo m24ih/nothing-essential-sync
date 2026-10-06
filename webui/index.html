@@ -14,7 +14,7 @@
                 <span class="red-dot"></span>
                 <h1 class="ndot-title">ESSENTIAL SYNC</h1>
             </div>
-            <span class="version-tag">v1.1.2</span>
+            <span class="version-tag">v1.2.2</span>
         </header>
 
         <!-- Navigation Tabs -->
@@ -123,9 +123,9 @@
                 <div class="about-text">
                     <p><strong>Essential Sync</strong> is an ultra-lightweight, zero-battery bridge for Nothing OS.</p>
                     <ul class="feature-list">
-                        <li><strong>100% Read-Only Safety:</strong> Uses Snap-to-RAM snapshotting. Never writes to or alters Nothing OS databases.</li>
+                        <li><strong>100% Read-Only Safety:</strong> Direct SQLite URI (mode=ro) zero-write queries. Never alters or locks Nothing OS databases.</li>
                         <li><strong>Event-Driven:</strong> Driven by Linux <code>inotify</code>. Consumes 0.0% CPU and zero battery while idle.</li>
-                        <li><strong>Native Obsidian Format:</strong> Extracts text, images (.webp), audio recordings (.wav), and AI transcripts cleanly into Markdown.</li>
+                        <li><strong>Native Obsidian Format:</strong> Extracts text, images (.webp), audio recordings (.m4a), tasks, and AI transcripts cleanly into Markdown.</li>
                     </ul>
                     <hr class="divider">
                     <div class="about-footer">
@@ -139,7 +139,7 @@
             <div class="card" style="margin-top: 16px;">
                 <div class="card-header">
                     <span class="card-label">SOFTWARE UPDATE</span>
-                    <span id="update-status-badge" class="badge">v1.1.2</span>
+                    <span id="update-status-badge" class="badge">v1.2.2</span>
                 </div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;" id="update-info-text">
                     KernelSU auto-update enabled. Check GitHub for releases.

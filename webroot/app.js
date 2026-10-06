@@ -293,6 +293,13 @@ async function loadVersionInfo() {
         if (vMatch) CURRENT_VERSION = vMatch[1].trim();
         if (cMatch) CURRENT_VERSION_CODE = parseInt(cMatch[1].trim(), 10);
     }
+    document.querySelectorAll(".version-tag").forEach(el => {
+        el.textContent = CURRENT_VERSION;
+    });
+    const updateBadge = document.getElementById("update-status-badge");
+    if (updateBadge && !pendingUpdate) {
+        updateBadge.textContent = CURRENT_VERSION;
+    }
 }
 
 const checkUpdateBtn = document.getElementById("btn-check-update");
@@ -347,6 +354,9 @@ if (checkUpdateBtn) {
             } else {
                 if (updateInfo) {
                     updateInfo.textContent = `You are on the latest stable version (${CURRENT_VERSION}).`;
+                }
+                if (updateBadge) {
+                    updateBadge.textContent = CURRENT_VERSION;
                 }
                 showToast("You have the latest version!");
             }
@@ -444,8 +454,8 @@ if (rebootBtn) {
 }
 
 // Initial Load
-window.addEventListener("DOMContentLoaded", () => {
-    loadVersionInfo();
+window.addEventListener("DOMContentLoaded", async () => {
+    await loadVersionInfo();
     refreshDashboard();
     loadConfig();
     scanVaults();
