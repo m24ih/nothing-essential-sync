@@ -58,11 +58,20 @@ case "${DETECTED_LANG}" in
         STR_AUDIO="Ses Kaydı"
         STR_SCREENSHOT="Ekran Görüntüsü"
         STR_DEFAULT_TITLE="Essential Not"
-        STR_SYNCED="Senkronize edildi"
-        STR_COMPLETED="Senkronizasyon tamamlandı. Durum güncellendi"
         STR_KEY_TOPICS="Ana Konu"
         STR_ANALYSIS="Analiz & Detaylar"
         STR_EXTRACTED_INFO="Önemli Bilgi"
+        LOG_WARN_NO_DB="UYARI: Essential Space veritabanı bulunamadı"
+        LOG_ERR_NO_SQLITE="HATA: sqlite3 ikili dosyası bulunamadı veya çalıştırılamıyor"
+        LOG_CARDS_FOUND="Yeni kartlar bulundu. Senkronizasyon başlatılıyor..."
+        LOG_WAITING_AI="⏳ Nothing AI analizi bekleniyor"
+        LOG_AI_TIMEOUT="⚠️ Nothing AI bekleme süresi doldu"
+        LOG_AI_TIMEOUT_DESC="Kartlar mevcut haliyle senkronize ediliyor..."
+        LOG_AI_DONE="✨ Nothing AI analizi tamamlandı"
+        LOG_START_SYNC="Senkronizasyon başlatılıyor..."
+        LOG_SYNCED="Senkronize edildi"
+        LOG_COMPLETED="Senkronizasyon tamamlandı. Durum güncellendi"
+        LOG_CLEANED_OLD="Temizlendi (Eski geçici not)"
         ;;
     de)
         STR_SUMMARY="KI-Zusammenfassung"
@@ -71,11 +80,20 @@ case "${DETECTED_LANG}" in
         STR_AUDIO="Audioaufnahme"
         STR_SCREENSHOT="Screenshot"
         STR_DEFAULT_TITLE="Essential Notiz"
-        STR_SYNCED="Synchronisiert"
-        STR_COMPLETED="Synchronisierung abgeschlossen. Status aktualisiert"
         STR_KEY_TOPICS="Hauptthema"
         STR_ANALYSIS="Analyse & Details"
         STR_EXTRACTED_INFO="Wichtige Information"
+        LOG_WARN_NO_DB="WARNUNG: Essential Space-Datenbank nicht gefunden"
+        LOG_ERR_NO_SQLITE="FEHLER: sqlite3-Binärdatei nicht gefunden oder nicht ausführbar"
+        LOG_CARDS_FOUND="Neue Karten gefunden. Synchronisierung wird gestartet..."
+        LOG_WAITING_AI="⏳ Warte auf Nothing AI-Analyse"
+        LOG_AI_TIMEOUT="⚠️ Nothing AI-Zeitüberschreitung"
+        LOG_AI_TIMEOUT_DESC="Karten werden mit aktuellen Daten synchronisiert..."
+        LOG_AI_DONE="✨ Nothing AI-Analyse abgeschlossen"
+        LOG_START_SYNC="Synchronisierung wird gestartet..."
+        LOG_SYNCED="Synchronisiert"
+        LOG_COMPLETED="Synchronisierung abgeschlossen. Status aktualisiert"
+        LOG_CLEANED_OLD="Bereinigt (Alte temporäre Notiz)"
         ;;
     fr)
         STR_SUMMARY="Résumé IA"
@@ -84,11 +102,20 @@ case "${DETECTED_LANG}" in
         STR_AUDIO="Enregistrement audio"
         STR_SCREENSHOT="Capture d'écran"
         STR_DEFAULT_TITLE="Note Essential"
-        STR_SYNCED="Synchronisé"
-        STR_COMPLETED="Synchronisation terminée. État mis à jour"
         STR_KEY_TOPICS="Sujet principal"
         STR_ANALYSIS="Analyse & Détails"
         STR_EXTRACTED_INFO="Information importante"
+        LOG_WARN_NO_DB="AVERTISSEMENT : Base de données Essential Space introuvable"
+        LOG_ERR_NO_SQLITE="ERREUR : Exécutable sqlite3 introuvable ou non exécutable"
+        LOG_CARDS_FOUND="Nouvelles cartes trouvées. Démarrage de la synchronisation..."
+        LOG_WAITING_AI="⏳ En attente de l'analyse Nothing AI"
+        LOG_AI_TIMEOUT="⚠️ Délai d'attente Nothing AI dépassé"
+        LOG_AI_TIMEOUT_DESC="Synchronisation avec les données actuelles..."
+        LOG_AI_DONE="✨ Analyse Nothing AI terminée"
+        LOG_START_SYNC="Démarrage de la synchronisation..."
+        LOG_SYNCED="Synchronisé"
+        LOG_COMPLETED="Synchronisation terminée. État mis à jour"
+        LOG_CLEANED_OLD="Nettoyé (Ancienne note temporaire)"
         ;;
     es)
         STR_SUMMARY="Resumen de IA"
@@ -97,11 +124,20 @@ case "${DETECTED_LANG}" in
         STR_AUDIO="Grabación de audio"
         STR_SCREENSHOT="Captura de pantalla"
         STR_DEFAULT_TITLE="Nota Essential"
-        STR_SYNCED="Sincronizado"
-        STR_COMPLETED="Sincronización completada. Estado actualizado"
         STR_KEY_TOPICS="Tema principal"
         STR_ANALYSIS="Análisis & Detalles"
         STR_EXTRACTED_INFO="Información importante"
+        LOG_WARN_NO_DB="ADVERTENCIA: Base de datos Essential Space no encontrada"
+        LOG_ERR_NO_SQLITE="ERROR: Binario sqlite3 no encontrado o no ejecutable"
+        LOG_CARDS_FOUND="Nuevas tarjetas encontradas. Iniciando sincronización..."
+        LOG_WAITING_AI="⏳ Esperando análisis de Nothing AI"
+        LOG_AI_TIMEOUT="⚠️ Tiempo de espera de Nothing AI agotado"
+        LOG_AI_TIMEOUT_DESC="Sincronizando con los datos actuales..."
+        LOG_AI_DONE="✨ Análisis de Nothing AI completado"
+        LOG_START_SYNC="Iniciando sincronización..."
+        LOG_SYNCED="Sincronizado"
+        LOG_COMPLETED="Sincronización completada. Estado actualizado"
+        LOG_CLEANED_OLD="Limpiado (Nota temporal anterior)"
         ;;
     *)
         # Default (en)
@@ -111,11 +147,20 @@ case "${DETECTED_LANG}" in
         STR_AUDIO="Audio Recording"
         STR_SCREENSHOT="Screenshot"
         STR_DEFAULT_TITLE="Essential Note"
-        STR_SYNCED="Synced"
-        STR_COMPLETED="Sync completed. State updated"
         STR_KEY_TOPICS="Key Topics"
         STR_ANALYSIS="Detailed Analysis"
         STR_EXTRACTED_INFO="Key Information"
+        LOG_WARN_NO_DB="WARNING: Essential Space database not found"
+        LOG_ERR_NO_SQLITE="ERROR: sqlite3 binary not found or not executable"
+        LOG_CARDS_FOUND="New cards found. Starting sync..."
+        LOG_WAITING_AI="⏳ Waiting for Nothing AI analysis"
+        LOG_AI_TIMEOUT="⚠️ Nothing AI wait timeout"
+        LOG_AI_TIMEOUT_DESC="Syncing cards with current data..."
+        LOG_AI_DONE="✨ Nothing AI analysis completed"
+        LOG_START_SYNC="Starting sync..."
+        LOG_SYNCED="Synced"
+        LOG_COMPLETED="Sync completed. State updated"
+        LOG_CLEANED_OLD="Cleaned (Old temporary note)"
         ;;
 esac
 
@@ -139,13 +184,13 @@ log() {
 
 # 1. Kontroller
 if [ ! -f "${SOURCE_DB}" ]; then
-    log "UYARI: Essential Space veritabanı bulunamadı: ${SOURCE_DB}"
+    log "${LOG_WARN_NO_DB}: ${SOURCE_DB}"
     rm -f "${LOCK_FILE}"
     exit 0
 fi
 
 if [ ! -x "${SQLITE_BIN}" ]; then
-    log "HATA: sqlite3 ikili dosyası bulunamadı veya çalıştırılamıyor: ${SQLITE_BIN}"
+    log "${LOG_ERR_NO_SQLITE}: ${SQLITE_BIN}"
     rm -f "${LOCK_FILE}"
     exit 1
 fi
@@ -196,7 +241,7 @@ while [ ${ELAPSED} -lt ${MAX_WAIT_SECONDS} ]; do
     # Her 6 saniyede bir log bildirimi üret (WebUI Dashboard'da canlı akar)
     if [ $((ELAPSED % 6)) -eq 0 ]; then
         PENDING_TYPES=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT group_concat(type) FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 AND ai_generate = 1 AND (summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
-        log "⏳ Nothing AI analizi bekleniyor (${PENDING_TYPES}) [${ELAPSED}s/${MAX_WAIT_SECONDS}s]..."
+        log "${LOG_WAITING_AI} (${PENDING_TYPES}) [${ELAPSED}s/${MAX_WAIT_SECONDS}s]..."
     fi
 
     sleep ${POLL_INTERVAL}
@@ -210,15 +255,15 @@ done
 
 if [ ${ELAPSED} -gt 0 ]; then
     if [ ${ELAPSED} -ge ${MAX_WAIT_SECONDS} ]; then
-        log "⚠️ Nothing AI bekleme süresi doldu (${MAX_WAIT_SECONDS}s). Kartlar mevcut haliyle senkronize ediliyor..."
+        log "${LOG_AI_TIMEOUT} (${MAX_WAIT_SECONDS}s). ${LOG_AI_TIMEOUT_DESC}"
     else
-        log "✨ Nothing AI analizi tamamlandı (${ELAPSED}s)! Senkronizasyon başlatılıyor..."
+        log "${LOG_AI_DONE} (${ELAPSED}s)! ${LOG_START_SYNC}"
     fi
     # Son güncel kart listesini tekrar çek
     CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 ORDER BY create_time ASC;")
 fi
 
-log "Yeni kartlar bulundu. Senkronizasyon başlatılıyor..."
+log "${LOG_CARDS_FOUND}"
 SYNC_COUNT=0
 CURRENT_MAX_TIME=${LAST_SYNC}
 
@@ -274,6 +319,7 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME DATE_STR DATE_ISO; d
             OLD_FILE="${DEST_NOTES}/${OLD_NAME}"
             if [ -f "${OLD_FILE}" ] && grep -q "${CARD_ID}" "${OLD_FILE}" 2>/dev/null; then
                 rm -f "${OLD_FILE}" 2>/dev/null
+                log "${LOG_CLEANED_OLD}: ${OLD_NAME}"
             fi
         done
     fi
@@ -418,12 +464,12 @@ EOF
     chmod 660 "${TARGET_FILE}" 2>/dev/null
     rm -f "${TMP_NOTE}" 2>/dev/null
 
-    log "${STR_SYNCED}: ${TARGET_FILENAME}"
+    log "${LOG_SYNCED}: ${TARGET_FILENAME}"
 
     # En yüksek zaman damgasını güncelle
     echo "${CREATE_TIME}" > "${STATE_FILE}"
 done
 
-log "${STR_COMPLETED}: $(cat "${STATE_FILE}" 2>/dev/null)"
+log "${LOG_COMPLETED}: $(cat "${STATE_FILE}" 2>/dev/null)"
 
 
