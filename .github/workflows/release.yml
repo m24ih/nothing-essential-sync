@@ -39,12 +39,34 @@ jobs:
         run: |
           ./make_module.sh
 
+      - name: Generate Release Notes
+        run: |
+          VERSION=$(grep "^version=" module.prop | cut -d'=' -f2)
+          TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
+          
+          # Sadece bu sürüme ait değişiklikleri CHANGELOG.md içinden çek
+          awk -v ver="${VERSION}" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release_notes.md
+
+          if [ ! -s release_notes.md ]; then
+            cat CHANGELOG.md > release_notes.md
+          fi
+
+          # Bir önceki sürümü bulup karşılaştırma linki ekle
+          PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          if [ -n "${PREV_TAG}" ]; then
+            echo -e "\n---\n**Önceki Sürüm:** [${PREV_TAG}](https://github.com/${{ github.repository }}/releases/tag/${PREV_TAG}) | **Tüm Değişiklikler:** [${PREV_TAG}...${TAG}](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG})" >> release_notes.md
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           name: "${{ steps.get_version.outputs.VERSION }} - Nothing Essential Sync"
-          body_path: CHANGELOG.md
+          body_path: release_notes.md
           draft: false
           prerelease: false
           files: nothing-essential-sync-*.zip
