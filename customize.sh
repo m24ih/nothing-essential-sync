@@ -5,7 +5,6 @@
 SKIPUNZIP=0
 
 MOD_VER=$(grep "^version=" "$MODPATH/module.prop" 2>/dev/null | cut -d'=' -f2-)
-[ -z "$MOD_VER" ] && MOD_VER="v1.2.2"
 
 ui_print "***************************************************"
 ui_print "  Nothing Essential Space -> Obsidian Sync Engine "
@@ -32,7 +31,6 @@ set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/setup.sh" 0 0 0755
 set_perm "$MODPATH/action.sh" 0 0 0755
 set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644
-set_perm_recursive "$MODPATH/webui" 0 0 0755 0644
 
 # 3. Create runtime storage if not existing
 mkdir -p /data/adb/essential-sync/bin 2>/dev/null

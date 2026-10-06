@@ -15,7 +15,6 @@ LOG_FILE="${BASE_DIR}/sync.log"
 
 SOURCE_DB_DIR="/data/data/com.nothing.ntessentialspace/databases"
 SOURCE_DB="${SOURCE_DB_DIR}/essential_space_database"
-SOURCE_FILES_DIR="/data/data/com.nothing.ntessentialspace/files"
 
 # Güvenli Konfigürasyon Ayrıştırıcı (Shell Injection / LPE Koruması)
 CONFIG_FILE="${BASE_DIR}/config.env"
@@ -264,7 +263,8 @@ else
 fi
 
 # Yeni veya henüz güncellenmiş/çözümlenmemiş kartları çek
-CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, update_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 ORDER BY create_time ASC, update_time ASC;")
+CARDS_SQL="SELECT card_id, create_time, update_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 ORDER BY create_time ASC, update_time ASC;"
+CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "${CARDS_SQL}")
 
 if [ -z "${CARDS}" ]; then
     # Yeni veya güncellenmiş kart yok
@@ -303,12 +303,10 @@ if [ ${ELAPSED} -gt 0 ]; then
         log "${LOG_AI_DONE} (${ELAPSED}s)! ${LOG_START_SYNC}"
     fi
     # Son güncel kart listesini tekrar çek
-    CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, update_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 ORDER BY create_time ASC, update_time ASC;")
+    CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "${CARDS_SQL}")
 fi
 
 log "${LOG_CARDS_FOUND}"
-SYNC_COUNT=0
-CURRENT_MAX_TIME=${LAST_SYNC}
 
 echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME UPDATE_TIME DATE_STR DATE_ISO; do
     [ -z "${CARD_ID}" ] && continue
@@ -530,9 +528,6 @@ EOF
             esac
         done
     fi
-
-    cat <<EOF >> "${TMP_NOTE}"
-EOF
 
     cp -f "${TMP_NOTE}" "${TARGET_FILE}" 2>/dev/null
     chmod 660 "${TARGET_FILE}" 2>/dev/null

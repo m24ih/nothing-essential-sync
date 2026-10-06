@@ -24,7 +24,7 @@ echo "✓ Hedef Cihaz: $DEVICE"
 $ADB -s "$DEVICE" shell "su -c '
 mkdir -p /data/adb/essential-sync/bin
 mkdir -p /data/adb/service.d
-mkdir -p /data/adb/modules/nothing-essential-sync/webui
+mkdir -p /data/adb/modules/nothing-essential-sync/webroot
 mkdir -p /data/adb/modules/nothing-essential-sync/bin
 '"
 
@@ -41,9 +41,9 @@ $ADB -s "$DEVICE" push "$SCRIPT_DIR/module.prop" /data/local/tmp/module_tmp.prop
 
 # WebUI dosyalarını aktar
 $ADB -s "$DEVICE" shell "su -c 'mkdir -p /data/local/tmp/webui_tmp'"
-$ADB -s "$DEVICE" push "$SCRIPT_DIR/webui/index.html" /data/local/tmp/webui_tmp/index.html
-$ADB -s "$DEVICE" push "$SCRIPT_DIR/webui/style.css" /data/local/tmp/webui_tmp/style.css
-$ADB -s "$DEVICE" push "$SCRIPT_DIR/webui/app.js" /data/local/tmp/webui_tmp/app.js
+$ADB -s "$DEVICE" push "$SCRIPT_DIR/webroot/index.html" /data/local/tmp/webui_tmp/index.html
+$ADB -s "$DEVICE" push "$SCRIPT_DIR/webroot/style.css" /data/local/tmp/webui_tmp/style.css
+$ADB -s "$DEVICE" push "$SCRIPT_DIR/webroot/app.js" /data/local/tmp/webui_tmp/app.js
 
 # 3. Root ile kalıcı konumlara yerleştir
 $ADB -s "$DEVICE" shell "su -c '
@@ -65,12 +65,10 @@ cp -f /data/adb/essential-sync/bin/sqlite3 /data/adb/modules/nothing-essential-s
 cp -f /data/adb/essential-sync/sync.sh /data/adb/modules/nothing-essential-sync/sync.sh
 cp -f /data/adb/essential-sync/setup.sh /data/adb/modules/nothing-essential-sync/setup.sh
 cp -f /data/adb/service.d/essential_sync.sh /data/adb/modules/nothing-essential-sync/service.sh
-mkdir -p /data/adb/modules/nothing-essential-sync/webroot
-cp -f /data/local/tmp/webui_tmp/* /data/adb/modules/nothing-essential-sync/webui/
 cp -f /data/local/tmp/webui_tmp/* /data/adb/modules/nothing-essential-sync/webroot/
 rm -rf /data/local/tmp/webui_tmp
 
-chmod -R 755 /data/adb/modules/nothing-essential-sync/webui /data/adb/modules/nothing-essential-sync/webroot
+chmod -R 755 /data/adb/modules/nothing-essential-sync/webroot
 chmod 755 /data/adb/modules/nothing-essential-sync/*.sh /data/adb/modules/nothing-essential-sync/bin/*
 '"
 
