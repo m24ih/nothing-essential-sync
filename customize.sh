@@ -4,10 +4,13 @@
 
 SKIPUNZIP=0
 
+MOD_VER=$(grep "^version=" "$MODPATH/module.prop" 2>/dev/null | cut -d'=' -f2-)
+[ -z "$MOD_VER" ] && MOD_VER="v1.2.2"
+
 ui_print "***************************************************"
 ui_print "  Nothing Essential Space -> Obsidian Sync Engine "
 ui_print "  Author: Melih Ak (@m24ih)                       "
-ui_print "  Version: v1.0.0                                 "
+ui_print "  Version: ${MOD_VER}                             "
 ui_print "***************************************************"
 
 # 1. Device check

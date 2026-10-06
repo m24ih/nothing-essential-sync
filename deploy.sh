@@ -36,6 +36,7 @@ $ADB -s "$DEVICE" push "$SCRIPT_DIR/sync.sh" /data/local/tmp/sync_tmp.sh
 $ADB -s "$DEVICE" push "$SCRIPT_DIR/setup.sh" /data/local/tmp/setup_tmp.sh
 $ADB -s "$DEVICE" push "$SCRIPT_DIR/config.env" /data/local/tmp/config_tmp.env
 $ADB -s "$DEVICE" push "$SCRIPT_DIR/service.sh" /data/local/tmp/service_tmp.sh
+$ADB -s "$DEVICE" push "$SCRIPT_DIR/action.sh" /data/local/tmp/action_tmp.sh
 $ADB -s "$DEVICE" push "$SCRIPT_DIR/module.prop" /data/local/tmp/module_tmp.prop
 
 # WebUI dosyalarını aktar
@@ -59,14 +60,17 @@ chmod 755 /data/adb/service.d/essential_sync.sh
 
 # KernelSU / MMRL Modül & WebUI dizini
 mv -f /data/local/tmp/module_tmp.prop /data/adb/modules/nothing-essential-sync/module.prop
+mv -f /data/local/tmp/action_tmp.sh /data/adb/modules/nothing-essential-sync/action.sh
 cp -f /data/adb/essential-sync/bin/sqlite3 /data/adb/modules/nothing-essential-sync/bin/sqlite3
 cp -f /data/adb/essential-sync/sync.sh /data/adb/modules/nothing-essential-sync/sync.sh
 cp -f /data/adb/essential-sync/setup.sh /data/adb/modules/nothing-essential-sync/setup.sh
 cp -f /data/adb/service.d/essential_sync.sh /data/adb/modules/nothing-essential-sync/service.sh
+mkdir -p /data/adb/modules/nothing-essential-sync/webroot
 cp -f /data/local/tmp/webui_tmp/* /data/adb/modules/nothing-essential-sync/webui/
+cp -f /data/local/tmp/webui_tmp/* /data/adb/modules/nothing-essential-sync/webroot/
 rm -rf /data/local/tmp/webui_tmp
 
-chmod -R 755 /data/adb/modules/nothing-essential-sync/webui
+chmod -R 755 /data/adb/modules/nothing-essential-sync/webui /data/adb/modules/nothing-essential-sync/webroot
 chmod 755 /data/adb/modules/nothing-essential-sync/*.sh /data/adb/modules/nothing-essential-sync/bin/*
 '"
 

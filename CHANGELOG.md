@@ -2,6 +2,19 @@
 
 All notable changes to the **Nothing Essential Sync** module will be documented in this file.
 
+## [v1.2.2] - 2026-10-06
+
+### Fixed & Hardened
+- **Zero-Write Flash Protection (NAND Wear Prevention)**: Eliminated repeated copying of multi-megabyte databases to `/data/local/tmp` during AI polling loops; switched to direct zero-lock SQLite URI mode (`file:...db?mode=ro`).
+- **Atomic Concurrency Lock**: Replaced TOCTOU lockfile race with POSIX atomic directory lock (`mkdir`) with PID validation, process debounce, and trap cleanup.
+- **Graceful Wait Timeout Protection**: Separated placeholder reconciliation from the 150-second active AI wait filter; unanalyzed legacy notes no longer cause sync timeouts for new captures.
+- **Obsidian Multiline Callout Formatting**: Properly escaped and prefixed multiline summaries, Q&As, and meeting analyses with `> ` so lines don't break outside Obsidian callout boxes.
+- **Normalized Bullet Points**: Cleaned up empty lines and standardized bullet formatting for AI analysis items.
+- **Automatic Log Rotation**: Enforced 512KB file size limit with automatic rotation on both `sync.log` and `daemon.log`.
+- **Security Hardening**: Replaced shell `source` of config files with a safe regex key-value parser, added UUID pattern verification to prevent SQL injection, and applied strict input sanitization in setup scripts and WebUI.
+- **Scoped Process Lifecycle**: Restricted `inotifyd` checks and termination signals to `ntessentialspace` to avoid killing other modules' background daemons.
+- **Dynamic Versioning**: Replaced hardcoded versions across WebUI, `customize.sh`, and update managers with dynamic metadata extraction.
+
 ## [v1.2.1] - 2026-10-06
 
 ### Added

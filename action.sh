@@ -12,7 +12,7 @@ echo ""
 
 # 1. Check inotifyd daemon status
 echo "🔍 Checking background service..."
-if ps -ef | grep inotifyd | grep -v grep >/dev/null 2>&1; then
+if ps -ef | grep inotifyd | grep ntessentialspace | grep -v grep >/dev/null 2>&1; then
     echo "   ✓ Background watcher (inotifyd) is ACTIVE"
 else
     echo "   ⚠️ Background watcher is not running (will start after unlock)"

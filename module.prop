@@ -1,7 +1,7 @@
 id=nothing-essential-sync
 name=Nothing Essential Space to Obsidian Sync
-version=v1.2.1
-versionCode=121
+version=v1.2.2
+versionCode=122
 author=Melih Ak (@m24ih)
 description=Zero-battery, 100% read-only event-driven sync from Nothing Essential Space to Obsidian with modern Nothing-style WebUI.
 updateJson=https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update.json

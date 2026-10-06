@@ -132,6 +132,11 @@ case "${SYNC_PAST_CHOICE}" in
 esac
 
 # 6. config.env Dosyasını Yaz
+DEST_NOTES=$(echo "${DEST_NOTES}" | tr -d '"`$\r\n')
+DEST_ATTACHMENTS=$(echo "${DEST_ATTACHMENTS}" | tr -d '"`$\r\n')
+TIME_FORMAT=$(echo "${TIME_FORMAT}" | tr -d '"`$\r\n')
+NOTE_TAG=$(echo "${NOTE_TAG}" | tr -d '"`$\r\n')
+
 mkdir -p "${BASE_DIR}" "${DEST_NOTES}" "${DEST_ATTACHMENTS}" 2>/dev/null
 
 cat <<EOF > "${CONFIG_FILE}"

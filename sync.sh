@@ -17,18 +17,27 @@ SOURCE_DB_DIR="/data/data/com.nothing.ntessentialspace/databases"
 SOURCE_DB="${SOURCE_DB_DIR}/essential_space_database"
 SOURCE_FILES_DIR="/data/data/com.nothing.ntessentialspace/files"
 
-# Konfigürasyon Yükleme
+# Güvenli Konfigürasyon Ayrıştırıcı (Shell Injection / LPE Koruması)
 CONFIG_FILE="${BASE_DIR}/config.env"
-if [ -f "${CONFIG_FILE}" ]; then
-    # shellcheck disable=SC1090
-    . "${CONFIG_FILE}"
-fi
+get_cfg() {
+    _KEY="$1"
+    _DEFAULT="$2"
+    if [ -f "${CONFIG_FILE}" ]; then
+        _VAL=$(grep -m1 "^[[:space:]]*${_KEY}=" "${CONFIG_FILE}" 2>/dev/null | cut -d'=' -f2- | tr -d '\r')
+        _VAL=$(echo "${_VAL}" | sed 's/^[[:space:]]*["'\'']\{0,1\}//; s/["'\'']\{0,1\}[[:space:]]*$//')
+        if [ -n "${_VAL}" ]; then
+            echo "${_VAL}"
+            return
+        fi
+    fi
+    echo "${_DEFAULT}"
+}
 
-DEST_NOTES="${DEST_NOTES:-/storage/emulated/0/Documents/EssentialSpaceNotes/00-Zettelkasten}"
-DEST_ATTACHMENTS="${DEST_ATTACHMENTS:-/storage/emulated/0/Documents/EssentialSpaceNotes/attachments}"
-TIME_FORMAT="${TIME_FORMAT:-%Y-%m-%d %H.%M}"
-NOTE_TAG="${NOTE_TAG:-inbox/essential-space}"
-NOTE_LANG="${NOTE_LANG:-auto}"
+DEST_NOTES=$(get_cfg "DEST_NOTES" "/storage/emulated/0/Documents/EssentialSpaceNotes/00-Zettelkasten")
+DEST_ATTACHMENTS=$(get_cfg "DEST_ATTACHMENTS" "/storage/emulated/0/Documents/EssentialSpaceNotes/attachments")
+TIME_FORMAT=$(get_cfg "TIME_FORMAT" "%Y-%m-%d %H.%M")
+NOTE_TAG=$(get_cfg "NOTE_TAG" "inbox/essential-space")
+NOTE_LANG=$(get_cfg "NOTE_LANG" "auto")
 
 # Sistem dili algılama (persist.sys.locale -> ro.product.locale -> fallback: en)
 DETECTED_LANG="en"
@@ -169,49 +178,60 @@ case "${DETECTED_LANG}" in
         ;;
 esac
 
-LOCK_FILE="/data/local/tmp/essential_sync.lock"
+LOCK_DIR="/data/local/tmp/essential_sync.lock"
 
-# 0. Paralel veya çifte tetiklemeyi önleme kilidi
-if [ -f "${LOCK_FILE}" ]; then
-    OLD_PID=$(cat "${LOCK_FILE}" 2>/dev/null)
+# 0. Paralel veya çifte tetiklemeyi önleme kilidi (Atomik mkdir)
+if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+    OLD_PID=$(cat "${LOCK_DIR}/pid" 2>/dev/null)
     if [ -n "${OLD_PID}" ] && kill -0 "${OLD_PID}" 2>/dev/null; then
         exit 0
     fi
+    # Eski/çökmüş kilit kalıntısını temizle
+    rm -rf "${LOCK_DIR}" 2>/dev/null
+    if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+        exit 0
+    fi
 fi
-echo $$ > "${LOCK_FILE}"
+echo $$ > "${LOCK_DIR}/pid"
 
-TMP_DIR="/data/local/tmp/essential_snap_$$"
+# inotifyd olay patlamalarını söndürmek için kısa debounce
+sleep 1
+
+TMP_DIR="/data/local/tmp/essential_tmp_$$"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "${LOG_FILE}" 2>/dev/null
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    # Log dosyasını 512 KB ile sınırla (otomatik rotasyon)
+    if [ -f "${LOG_FILE}" ] && [ "$(wc -c < "${LOG_FILE}" 2>/dev/null || echo 0)" -gt 512000 ]; then
+        tail -n 1000 "${LOG_FILE}" > "${LOG_FILE}.tmp" 2>/dev/null && mv -f "${LOG_FILE}.tmp" "${LOG_FILE}" 2>/dev/null
+    fi
 }
+
+cleanup() {
+    rm -rf "${TMP_DIR}" 2>/dev/null
+    if [ -f "${LOCK_DIR}/pid" ] && [ "$(cat "${LOCK_DIR}/pid" 2>/dev/null)" = "$$" ]; then
+        rm -rf "${LOCK_DIR}" 2>/dev/null
+    fi
+}
+trap cleanup EXIT INT TERM
 
 # 1. Kontroller
 if [ ! -f "${SOURCE_DB}" ]; then
     log "${LOG_WARN_NO_DB}: ${SOURCE_DB}"
-    rm -f "${LOCK_FILE}"
     exit 0
 fi
 
 if [ ! -x "${SQLITE_BIN}" ]; then
     log "${LOG_ERR_NO_SQLITE}: ${SQLITE_BIN}"
-    rm -f "${LOCK_FILE}"
     exit 1
 fi
 
-mkdir -p "${DEST_NOTES}" "${DEST_ATTACHMENTS}"
+mkdir -p "${DEST_NOTES}" "${DEST_ATTACHMENTS}" "${TMP_DIR}"
 
-# 2. Snap-to-RAM (Nothing OS kütüğünü riske atmamak için RAM kopyası)
-rm -rf "${TMP_DIR}" 2>/dev/null
-mkdir -p "${TMP_DIR}"
-trap 'rm -rf "${TMP_DIR}"; rm -f "${LOCK_FILE}" 2>/dev/null' EXIT INT TERM
-
-cp "${SOURCE_DB}" "${TMP_DIR}/snap.db" 2>/dev/null || exit 1
-[ -f "${SOURCE_DB}-wal" ] && cp "${SOURCE_DB}-wal" "${TMP_DIR}/snap.db-wal" 2>/dev/null
-[ -f "${SOURCE_DB}-shm" ] && cp "${SOURCE_DB}-shm" "${TMP_DIR}/snap.db-shm" 2>/dev/null
-
-SNAP_DB="${TMP_DIR}/snap.db"
+# 2. Doğrudan Salt-Okunur Veritabanı Erişimi (Zero Flash Wear / Zero Lock)
+# Canlı veritabanını diske kopyalamak yerine SQLite URI mode=ro ile doğrudan güvenle okuyoruz.
+SNAP_DB="file:${SOURCE_DB}?mode=ro"
 
 # 3. Son senkronizasyon zamanını oku
 LAST_SYNC=0
@@ -227,7 +247,8 @@ PLACEHOLDER_IDS=""
 for PH in "${DEST_NOTES}"/*" - ${STR_DEFAULT_TITLE}.md" "${DEST_NOTES}"/*" - Essential Note.md" "${DEST_NOTES}"/*" - Essential Not.md"; do
     [ -f "${PH}" ] || continue
     PID=$(grep -m1 '^id: ' "${PH}" 2>/dev/null | awk '{print $2}' | tr -d '\r\n')
-    if [ -n "${PID}" ]; then
+    # SQL Injection Koruması: Sadece geçerli 36 karakterlik UUID'leri kabul et
+    if [ -n "${PID}" ] && echo "${PID}" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
         if [ -z "${PLACEHOLDER_IDS}" ]; then
             PLACEHOLDER_IDS="'${PID}'"
         else
@@ -251,31 +272,28 @@ if [ -z "${CARDS}" ]; then
 fi
 
 # AI analizinin bitmesini bekleme mekanizması (Graceful Wait):
-# Nothing OS görsel notları ~6-18 saniyede, ses kayıtlarını (Essential Record) ~60-80 saniyede analiz eder.
-# Kart henüz analiz ediliyorsa (analysis_state = 0 veya summary/title henüz boşsa), AI bitene kadar bekle.
+# Sadece yeni oluşturulmuş veya son 5 dakika içinde aktif işlem gören kartları bekle.
+# Eski çözümlenmemiş taslakların yeni senkronizasyonları 150s kilitlemesini engelle.
+PENDING_WAIT_FILTER="(create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC}) AND (strftime('%s', 'now')*1000 - create_time) < 300000 AND soft_delete_at <= 0 AND (analysis_state = 0 OR summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '')"
+
 MAX_WAIT_SECONDS=150
 POLL_INTERVAL=2
 ELAPSED=0
 
 while [ ${ELAPSED} -lt ${MAX_WAIT_SECONDS} ]; do
-    PENDING_COUNT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT count(*) FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 AND (analysis_state = 0 OR summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
+    PENDING_COUNT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT count(*) FROM cards WHERE ${PENDING_WAIT_FILTER};")
     if [ "${PENDING_COUNT}" = "0" ] || [ -z "${PENDING_COUNT}" ]; then
         break
     fi
 
     # Her 6 saniyede bir log bildirimi üret (WebUI Dashboard'da canlı akar)
     if [ $((ELAPSED % 6)) -eq 0 ]; then
-        PENDING_TYPES=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT group_concat(type) FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 AND (analysis_state = 0 OR summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
+        PENDING_TYPES=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT group_concat(type) FROM cards WHERE ${PENDING_WAIT_FILTER};")
         log "${LOG_WAITING_AI} (${PENDING_TYPES}) [${ELAPSED}s/${MAX_WAIT_SECONDS}s]..."
     fi
 
     sleep ${POLL_INTERVAL}
     ELAPSED=$((ELAPSED + POLL_INTERVAL))
-
-    # Güncel veritabanı durumunu RAM snap kopyasına yenile
-    cp "${SOURCE_DB}" "${SNAP_DB}" 2>/dev/null
-    [ -f "${SOURCE_DB}-wal" ] && cp "${SOURCE_DB}-wal" "${TMP_DIR}/snap.db-wal" 2>/dev/null
-    [ -f "${SOURCE_DB}-shm" ] && cp "${SOURCE_DB}-shm" "${TMP_DIR}/snap.db-shm" 2>/dev/null
 done
 
 if [ ${ELAPSED} -gt 0 ]; then
@@ -378,10 +396,11 @@ tags:
 EOF
 
     if [ -n "${SUMMARY}" ]; then
+        ESCAPED_SUMMARY=$(echo "${SUMMARY}" | sed 's/^/> /')
         cat <<EOF >> "${TMP_NOTE}"
 
 > [!summary] ${STR_SUMMARY}
-> ${SUMMARY}
+${ESCAPED_SUMMARY}
 EOF
     fi
 
@@ -456,7 +475,7 @@ EOF
             case "${A_TYPE}" in
                 BULLET_POINTS)
                     [ -z "${A_TITLE}" ] && A_TITLE="${STR_ANALYSIS}"
-                    FORMATTED_BULLETS=$(echo "${A_CONTENT}" | sed 's/^[[:space:]]*/- /')
+                    FORMATTED_BULLETS=$(echo "${A_CONTENT}" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*[-*•]\{0,1\}[[:space:]]*/- /')
                     cat <<EOF >> "${TMP_NOTE}"
 
 ### 📌 ${A_TITLE}
@@ -465,10 +484,11 @@ EOF
                     ;;
                 INFO_EXTRACT)
                     [ -z "${A_TITLE}" ] && A_TITLE="${STR_EXTRACTED_INFO}"
+                    FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
                     cat <<EOF >> "${TMP_NOTE}"
 
 > [!info] ${A_TITLE}
-> ${A_CONTENT}
+${FORMATTED_CONTENT}
 EOF
                     ;;
                 MEETING_MAIN_TOPIC)
@@ -483,25 +503,28 @@ EOF
                     HEADER="${A_TITLE}"
                     [ -n "${A_TIME}" ] && HEADER="${HEADER} (${A_TIME})"
                     [ -z "${HEADER}" ] && HEADER="${STR_ANALYSIS}"
+                    FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
                     cat <<EOF >> "${TMP_NOTE}"
 
 > [!abstract] ${HEADER}
-> ${A_CONTENT}
+${FORMATTED_CONTENT}
 EOF
                     ;;
                 MEETING_EMOTIONAL_SUMMARY|FREEFORM)
                     [ -z "${A_TITLE}" ] && A_TITLE="${STR_SUMMARY}"
+                    FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
                     cat <<EOF >> "${TMP_NOTE}"
 
 > [!note] ${A_TITLE}
-> ${A_CONTENT}
+${FORMATTED_CONTENT}
 EOF
                     ;;
                 ANSWER)
+                    FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
                     cat <<EOF >> "${TMP_NOTE}"
 
 > [!faq] Q&A
-> ${A_CONTENT}
+${FORMATTED_CONTENT}
 EOF
                     ;;
             esac

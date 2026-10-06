@@ -32,17 +32,26 @@ fi
 chmod 755 "${SYNC_SCRIPT}" 2>/dev/null
 mkdir -p "${BASE_DIR}"
 
+DAEMON_LOG="${BASE_DIR}/daemon.log"
+rotate_log() {
+    if [ -f "${DAEMON_LOG}" ] && [ "$(wc -c < "${DAEMON_LOG}" 2>/dev/null || echo 0)" -gt 512000 ]; then
+        tail -n 1000 "${DAEMON_LOG}" > "${DAEMON_LOG}.tmp" 2>/dev/null && mv -f "${DAEMON_LOG}.tmp" "${DAEMON_LOG}" 2>/dev/null
+    fi
+}
+
 # 4. Varsa eski inotifyd süreçlerini temizle
 pkill -f "inotifyd.*${DB_DIR}" 2>/dev/null || true
 
 # 5. Başlangıçta bekleyen notları senkronize et
-sh "${SYNC_SCRIPT}" >> "${BASE_DIR}/daemon.log" 2>&1
+rotate_log
+sh "${SYNC_SCRIPT}" >> "${DAEMON_LOG}" 2>&1
 
 # 6. inotify ile anlık olay tetikleyiciyi arka planda başlat (0% CPU, anlık uyandırma)
-toybox inotifyd "${SYNC_SCRIPT}" "${DB_DIR}:wc" >> "${BASE_DIR}/daemon.log" 2>&1 &
+toybox inotifyd "${SYNC_SCRIPT}" "${DB_DIR}:wc" >> "${DAEMON_LOG}" 2>&1 &
 
 # 7. Dayanıklılık için 2 dakikalık periyodik fallback döngüsü
 while true; do
     sleep 120
-    sh "${SYNC_SCRIPT}" >> "${BASE_DIR}/daemon.log" 2>&1
+    rotate_log
+    sh "${SYNC_SCRIPT}" >> "${DAEMON_LOG}" 2>&1
 done
