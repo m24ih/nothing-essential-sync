@@ -1,21 +1,73 @@
 /* ==========================================================================
-   Nothing OS Aesthetic - Dark Monochrome Theme
+   Nothing OS Aesthetic - Monochrome Theme System (System / Dark / Light)
    Designed for Nothing Essential Sync Module WebUI
    ========================================================================== */
 
-:root {
+:root,
+[data-theme="dark"] {
     --bg-color: #000000;
     --card-bg: #111111;
     --card-border: #222222;
+    --input-bg: #080808;
+    --metric-bg: #080808;
     --text-primary: #ffffff;
     --text-secondary: #888888;
     --text-muted: #555555;
     --accent-red: #d71920;
     --accent-green: #00e676;
+    --code-bg: #1f1f1f;
+    --secondary-hover: #1a1a1a;
+    --console-bg: #050505;
+    --console-text: #00e676;
+    --badge-loading-bg: #222222;
+    --badge-loading-text: #888888;
+    --toast-shadow: rgba(0,0,0,0.6);
     --font-mono: 'Space Mono', 'Courier New', Courier, monospace;
     --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --radius-card: 16px;
     --radius-btn: 12px;
+}
+
+[data-theme="light"] {
+    --bg-color: #f2f2f2;
+    --card-bg: #ffffff;
+    --card-border: #e0e0e0;
+    --input-bg: #f7f7f7;
+    --metric-bg: #f7f7f7;
+    --text-primary: #111111;
+    --text-secondary: #555555;
+    --text-muted: #888888;
+    --accent-red: #d71920;
+    --accent-green: #008744;
+    --code-bg: #eaeaea;
+    --secondary-hover: #e8e8e8;
+    --console-bg: #151515;
+    --console-text: #00e676;
+    --badge-loading-bg: #e2e2e2;
+    --badge-loading-text: #666666;
+    --toast-shadow: rgba(0,0,0,0.15);
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+        --bg-color: #f2f2f2;
+        --card-bg: #ffffff;
+        --card-border: #e0e0e0;
+        --input-bg: #f7f7f7;
+        --metric-bg: #f7f7f7;
+        --text-primary: #111111;
+        --text-secondary: #555555;
+        --text-muted: #888888;
+        --accent-red: #d71920;
+        --accent-green: #008744;
+        --code-bg: #eaeaea;
+        --secondary-hover: #e8e8e8;
+        --console-bg: #151515;
+        --console-text: #00e676;
+        --badge-loading-bg: #e2e2e2;
+        --badge-loading-text: #666666;
+        --toast-shadow: rgba(0,0,0,0.15);
+    }
 }
 
 * {
@@ -68,6 +120,33 @@ body {
     font-weight: 700;
     letter-spacing: 2px;
     color: var(--text-primary);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.theme-toggle-btn {
+    background: transparent;
+    border: 1px solid var(--card-border);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover,
+.theme-toggle-btn:active {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
 }
 
 .version-tag {
@@ -167,8 +246,8 @@ body {
 }
 
 .badge-loading {
-    background-color: #222222;
-    color: var(--text-secondary);
+    background-color: var(--badge-loading-bg);
+    color: var(--badge-loading-text);
 }
 
 /* Status Grid */
@@ -180,7 +259,7 @@ body {
 }
 
 .metric {
-    background-color: #080808;
+    background-color: var(--metric-bg);
     border: 1px solid var(--card-border);
     border-radius: 12px;
     padding: 14px;
@@ -220,7 +299,7 @@ body {
 }
 
 .input-text, .input-select {
-    background-color: #080808;
+    background-color: var(--input-bg);
     border: 1px solid var(--card-border);
     border-radius: 10px;
     padding: 12px 14px;
@@ -271,7 +350,7 @@ body {
 }
 
 .secondary-btn:active {
-    background-color: #1a1a1a;
+    background-color: var(--secondary-hover);
 }
 
 .icon-btn {
@@ -289,13 +368,13 @@ body {
 
 /* Log Console */
 .log-console {
-    background-color: #050505;
+    background-color: var(--console-bg);
     border: 1px solid var(--card-border);
     border-radius: 10px;
     padding: 12px;
     font-family: var(--font-mono);
     font-size: 0.72rem;
-    color: #00e676;
+    color: var(--console-text);
     overflow-x: auto;
     max-height: 180px;
     white-space: pre-wrap;
@@ -318,7 +397,7 @@ body {
 }
 
 .feature-list code {
-    background-color: #1f1f1f;
+    background-color: var(--code-bg);
     padding: 2px 5px;
     border-radius: 4px;
     font-family: var(--font-mono);
@@ -358,7 +437,7 @@ body {
     font-weight: 700;
     padding: 10px 20px;
     border-radius: 30px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+    box-shadow: 0 4px 14px var(--toast-shadow);
     z-index: 1000;
     transition: opacity 0.3s ease;
 }

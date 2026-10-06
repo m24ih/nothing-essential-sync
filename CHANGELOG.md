@@ -4,6 +4,9 @@ All notable changes to the **Nothing Essential Sync** module will be documented 
 
 ## [v1.2.2] - 2026-10-06
 
+### Added
+- **Nothing OS Light / Dark / System Theme Engine**: Added full theme support to WebUI with three selectable options: `System Default (Auto)`, `Light Theme (Nothing Light)`, and `Dark Theme (Nothing Dark)`. Features instant non-flashing theme initialization, a quick cycle toggle button in the header, and persistent settings storage.
+
 ### Fixed & Hardened
 - **Zero-Write Flash Protection (NAND Wear Prevention)**: Eliminated repeated copying of multi-megabyte databases to `/data/local/tmp` during AI polling loops; switched to direct zero-lock SQLite URI mode (`file:...db?mode=ro`).
 - **Atomic Concurrency Lock**: Replaced TOCTOU lockfile race with POSIX atomic directory lock (`mkdir`) with PID validation, process debounce, and trap cleanup.

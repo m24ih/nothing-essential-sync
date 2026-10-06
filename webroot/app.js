@@ -60,6 +60,80 @@ function showToast(msg) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Theme Management (System / Light / Dark)
+// -----------------------------------------------------------------------------
+function getSavedTheme() {
+    return localStorage.getItem("essential_theme") || "system";
+}
+
+function updateThemeUI(theme) {
+    const icon = document.getElementById("theme-icon");
+    if (icon) {
+        if (theme === "system") {
+            icon.textContent = "◐";
+        } else if (theme === "light") {
+            icon.textContent = "☀️";
+        } else {
+            icon.textContent = "🌙";
+        }
+    }
+    const select = document.getElementById("select-theme");
+    if (select && select.value !== theme) {
+        select.value = theme;
+    }
+}
+
+function applyTheme(theme) {
+    if (theme === "system") {
+        document.documentElement.removeAttribute("data-theme");
+    } else {
+        document.documentElement.setAttribute("data-theme", theme);
+    }
+    localStorage.setItem("essential_theme", theme);
+    updateThemeUI(theme);
+}
+
+// Apply saved theme immediately on script load to prevent flashing
+try {
+    applyTheme(getSavedTheme());
+} catch (e) {}
+
+function initTheme() {
+    const current = getSavedTheme();
+    applyTheme(current);
+
+    try {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (getSavedTheme() === "system") {
+                updateThemeUI("system");
+            }
+        });
+    } catch (e) {}
+
+    const toggleBtn = document.getElementById("btn-theme-toggle");
+    if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+            const cur = getSavedTheme();
+            let next = "dark";
+            if (cur === "system") next = "light";
+            else if (cur === "light") next = "dark";
+            else next = "system";
+
+            applyTheme(next);
+            showToast(`Theme: ${next.toUpperCase()}`);
+        });
+    }
+
+    const themeSelect = document.getElementById("select-theme");
+    if (themeSelect) {
+        themeSelect.addEventListener("change", (e) => {
+            applyTheme(e.target.value);
+            showToast(`Theme: ${e.target.value.toUpperCase()}`);
+        });
+    }
+}
+
 // Tab Switching
 document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -163,6 +237,9 @@ async function loadConfig() {
             if (el) el.value = cleanVal;
         }
     });
+
+    const themeEl = document.getElementById("select-theme");
+    if (themeEl) themeEl.value = getSavedTheme();
 }
 
 // Scan Vaults
@@ -455,6 +532,7 @@ if (rebootBtn) {
 
 // Initial Load
 window.addEventListener("DOMContentLoaded", async () => {
+    initTheme();
     await loadVersionInfo();
     refreshDashboard();
     loadConfig();
