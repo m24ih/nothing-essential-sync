@@ -2,6 +2,14 @@
 
 All notable changes to the **Nothing Essential Sync** module will be documented in this file.
 
+## [v1.2.1] - 2026-10-06
+
+### Fixed
+- **Pending Placeholder Auto-Resolution**: Automatically detects any existing unanalyzed placeholder notes in Obsidian (`*Essential Note.md`) and reconciles them when Nothing AI finishes.
+- **Graceful AI Wait Query**: Removed invalid `ai_generate = 1` dependency from the wait condition; correctly checks Nothing OS `analysis_state = 0` and unpopulated title/summary fields.
+- **Update Time Tracking**: State tracking now observes `update_time` alongside `create_time` so subsequent asynchronous AI analyses or title updates trigger synchronization.
+- **Safe Dynamic File Renaming**: Upgrades file cleanup to match by card UUID (`id: <uuid>`), safely replacing placeholders without duplicate ID suffix collisions.
+
 ## [v1.2.0] - 2026-10-06
 
 ### Added

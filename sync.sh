@@ -200,7 +200,7 @@ mkdir -p "${DEST_NOTES}" "${DEST_ATTACHMENTS}"
 # 2. Snap-to-RAM (Nothing OS kütüğünü riske atmamak için RAM kopyası)
 rm -rf "${TMP_DIR}" 2>/dev/null
 mkdir -p "${TMP_DIR}"
-trap 'rm -rf "${TMP_DIR}" "${LOCK_FILE}"' EXIT INT TERM
+trap 'rm -rf "${TMP_DIR}"; rm -f "${LOCK_FILE}" 2>/dev/null' EXIT INT TERM
 
 cp "${SOURCE_DB}" "${TMP_DIR}/snap.db" 2>/dev/null || exit 1
 [ -f "${SOURCE_DB}-wal" ] && cp "${SOURCE_DB}-wal" "${TMP_DIR}/snap.db-wal" 2>/dev/null
@@ -217,30 +217,50 @@ if [ -f "${STATE_FILE}" ]; then
     esac
 fi
 
-# 4. Yeni veya henüz senkronize edilmemiş kartları çek
-CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 ORDER BY create_time ASC;")
+# 4. Henüz çözümlenmemiş geçici taslak/placeholder dosyaları tespit et
+PLACEHOLDER_IDS=""
+for PH in "${DEST_NOTES}"/*" - ${STR_DEFAULT_TITLE}.md" "${DEST_NOTES}"/*" - Essential Note.md" "${DEST_NOTES}"/*" - Essential Not.md"; do
+    [ -f "${PH}" ] || continue
+    PID=$(grep -m1 '^id: ' "${PH}" 2>/dev/null | awk '{print $2}' | tr -d '\r\n')
+    if [ -n "${PID}" ]; then
+        if [ -z "${PLACEHOLDER_IDS}" ]; then
+            PLACEHOLDER_IDS="'${PID}'"
+        else
+            PLACEHOLDER_IDS="${PLACEHOLDER_IDS},'${PID}'"
+        fi
+    fi
+done
+
+if [ -n "${PLACEHOLDER_IDS}" ]; then
+    QUERY_FILTER="((create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC}) OR card_id IN (${PLACEHOLDER_IDS}))"
+else
+    QUERY_FILTER="(create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC})"
+fi
+
+# Yeni veya henüz güncellenmiş/çözümlenmemiş kartları çek
+CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, update_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 ORDER BY create_time ASC, update_time ASC;")
 
 if [ -z "${CARDS}" ]; then
-    # Yeni kart yok
+    # Yeni veya güncellenmiş kart yok
     exit 0
 fi
 
 # AI analizinin bitmesini bekleme mekanizması (Graceful Wait):
 # Nothing OS görsel notları ~6-18 saniyede, ses kayıtlarını (Essential Record) ~60-80 saniyede analiz eder.
-# Kart henüz analiz ediliyorsa (summary veya title henüz boşsa), AI bitene kadar bekle.
+# Kart henüz analiz ediliyorsa (analysis_state = 0 veya summary/title henüz boşsa), AI bitene kadar bekle.
 MAX_WAIT_SECONDS=150
 POLL_INTERVAL=2
 ELAPSED=0
 
 while [ ${ELAPSED} -lt ${MAX_WAIT_SECONDS} ]; do
-    PENDING_COUNT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT count(*) FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 AND ai_generate = 1 AND (summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
+    PENDING_COUNT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT count(*) FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 AND (analysis_state = 0 OR summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
     if [ "${PENDING_COUNT}" = "0" ] || [ -z "${PENDING_COUNT}" ]; then
         break
     fi
 
     # Her 6 saniyede bir log bildirimi üret (WebUI Dashboard'da canlı akar)
     if [ $((ELAPSED % 6)) -eq 0 ]; then
-        PENDING_TYPES=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT group_concat(type) FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 AND ai_generate = 1 AND (summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
+        PENDING_TYPES=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT group_concat(type) FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 AND (analysis_state = 0 OR summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '');")
         log "${LOG_WAITING_AI} (${PENDING_TYPES}) [${ELAPSED}s/${MAX_WAIT_SECONDS}s]..."
     fi
 
@@ -260,14 +280,14 @@ if [ ${ELAPSED} -gt 0 ]; then
         log "${LOG_AI_DONE} (${ELAPSED}s)! ${LOG_START_SYNC}"
     fi
     # Son güncel kart listesini tekrar çek
-    CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE create_time > ${LAST_SYNC} AND soft_delete_at <= 0 ORDER BY create_time ASC;")
+    CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_id, create_time, update_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 ORDER BY create_time ASC, update_time ASC;")
 fi
 
 log "${LOG_CARDS_FOUND}"
 SYNC_COUNT=0
 CURRENT_MAX_TIME=${LAST_SYNC}
 
-echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME DATE_STR DATE_ISO; do
+echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME UPDATE_TIME DATE_STR DATE_ISO; do
     [ -z "${CARD_ID}" ] && continue
 
     TITLE=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT coalesce(title, '') FROM cards WHERE card_id = '${CARD_ID}';")
@@ -313,20 +333,22 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME DATE_STR DATE_ISO; d
         CLEAN_TITLE="${STR_DEFAULT_TITLE}"
     fi
 
-    # Varsa önceki geçici/isimsiz placeholder dosyayı temizle (örn. '2026-10-06 02.24 - Essential Note.md')
-    if [ "${CLEAN_TITLE}" != "${STR_DEFAULT_TITLE}" ]; then
-        for OLD_NAME in "${DATE_STR} - ${STR_DEFAULT_TITLE}.md" "${DATE_STR} - Essential Note.md" "${DATE_STR} - Essential Not.md"; do
-            OLD_FILE="${DEST_NOTES}/${OLD_NAME}"
-            if [ -f "${OLD_FILE}" ] && grep -q "${CARD_ID}" "${OLD_FILE}" 2>/dev/null; then
-                rm -f "${OLD_FILE}" 2>/dev/null
-                log "${LOG_CLEANED_OLD}: ${OLD_NAME}"
-            fi
-        done
-    fi
-
+    SHORT_ID=$(echo "${CARD_ID}" | cut -c 1-8)
     TARGET_FILENAME="${DATE_STR} - ${CLEAN_TITLE}.md"
-    if [ -f "${DEST_NOTES}/${TARGET_FILENAME}" ]; then
-        SHORT_ID=$(echo "${CARD_ID}" | cut -c 1-8)
+
+    # Varsa bu karta ait eski/farklı isimli dosyayı temizle (placeholder veya eski başlıklı dosya)
+    for EXISTING_FILE in "${DEST_NOTES}/${DATE_STR} - "*.md; do
+        [ -f "${EXISTING_FILE}" ] || continue
+        if grep -q "id: ${CARD_ID}" "${EXISTING_FILE}" 2>/dev/null; then
+            EXISTING_NAME=$(basename "${EXISTING_FILE}")
+            if [ "${EXISTING_NAME}" != "${TARGET_FILENAME}" ]; then
+                rm -f "${EXISTING_FILE}" 2>/dev/null
+                log "${LOG_CLEANED_OLD}: ${EXISTING_NAME}"
+            fi
+        fi
+    done
+
+    if [ -f "${DEST_NOTES}/${TARGET_FILENAME}" ] && ! grep -q "id: ${CARD_ID}" "${DEST_NOTES}/${TARGET_FILENAME}" 2>/dev/null; then
         TARGET_FILENAME="${DATE_STR} - ${CLEAN_TITLE} - ${SHORT_ID}.md"
     fi
 
@@ -467,7 +489,21 @@ EOF
     log "${LOG_SYNCED}: ${TARGET_FILENAME}"
 
     # En yüksek zaman damgasını güncelle
-    echo "${CREATE_TIME}" > "${STATE_FILE}"
+    NEW_STATE="${UPDATE_TIME}"
+    if [ -z "${NEW_STATE}" ] || [ "${NEW_STATE}" = "0" ]; then
+        NEW_STATE="${CREATE_TIME}"
+    elif [ -n "${CREATE_TIME}" ] && [ "${CREATE_TIME}" -gt "${NEW_STATE}" ] 2>/dev/null; then
+        NEW_STATE="${CREATE_TIME}"
+    fi
+    if [ -n "${NEW_STATE}" ]; then
+        CUR_SAVED=$(cat "${STATE_FILE}" 2>/dev/null || echo 0)
+        case "${CUR_SAVED}" in
+            ''|*[!0-9]*) CUR_SAVED=0 ;;
+        esac
+        if [ "${NEW_STATE}" -gt "${CUR_SAVED}" ] 2>/dev/null; then
+            echo "${NEW_STATE}" > "${STATE_FILE}"
+        fi
+    fi
 done
 
 log "${LOG_COMPLETED}: $(cat "${STATE_FILE}" 2>/dev/null)"
