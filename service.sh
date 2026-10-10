@@ -3,6 +3,9 @@
 # Module Service Starter (KernelSU / Magisk / APatch)
 # ==============================================================================
 
+export PATH="/data/adb/essential-sync/bin:/system/bin:/system/xbin:/apex/com.android.runtime/bin:${PATH:-}"
+unset LD_LIBRARY_PATH
+
 MODDIR="${0%/*}"
 BASE_DIR="/data/adb/essential-sync"
 SYNC_SCRIPT="${BASE_DIR}/sync.sh"
@@ -18,8 +21,13 @@ while [ ! -d "${DB_DIR}" ]; do
     sleep 3
 done
 
-# 3. FUSE depolama montajının (/storage/emulated/0) tam oturması için kısa bekleme
-sleep 5
+# 3. FUSE depolama montajının (/storage/emulated/0) tam oturması için bekle
+while ! ls -d /storage/emulated/0 >/dev/null 2>&1; do
+    sleep 3
+done
+
+# 4. Eski kilit ve geçici kalıntıları temizle
+rm -rf /data/local/tmp/essential_sync.lock /data/local/tmp/essential_tmp_* 2>/dev/null
 
 if [ ! -f "${SYNC_SCRIPT}" ]; then
     SYNC_SCRIPT="${MODDIR}/sync.sh"

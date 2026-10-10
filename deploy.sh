@@ -70,6 +70,13 @@ rm -rf /data/local/tmp/webui_tmp
 
 chmod -R 755 /data/adb/modules/nothing-essential-sync/webroot
 chmod 755 /data/adb/modules/nothing-essential-sync/*.sh /data/adb/modules/nothing-essential-sync/bin/*
+
+# Eski süreçleri temizle ve güncel servisi yeniden başlat
+pkill -f "inotifyd.*com.nothing.ntessentialspace" 2>/dev/null || true
+pkill -f "/service.sh" 2>/dev/null || true
+pkill -f "essential_sync.sh" 2>/dev/null || true
+rm -rf /data/local/tmp/essential_sync.lock 2>/dev/null
+nohup /system/bin/sh /data/adb/service.d/essential_sync.sh >/dev/null 2>&1 &
 '"
 
 echo "✓ Dosyalar yerleştirildi ve izinler ayarlandı."

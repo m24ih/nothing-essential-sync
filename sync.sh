@@ -8,6 +8,9 @@
 
 set -u
 
+export PATH="/data/adb/essential-sync/bin:/system/bin:/system/xbin:/apex/com.android.runtime/bin:${PATH:-}"
+unset LD_LIBRARY_PATH
+
 BASE_DIR="/data/adb/essential-sync"
 SQLITE_BIN="${BASE_DIR}/bin/sqlite3"
 STATE_FILE="${BASE_DIR}/last_sync_time.txt"
@@ -180,12 +183,25 @@ esac
 LOCK_DIR="/data/local/tmp/essential_sync.lock"
 
 # 0. Paralel veya çifte tetiklemeyi önleme kilidi (Atomik mkdir)
+is_process_sync() {
+    _PID="$1"
+    [ -z "${_PID}" ] && return 1
+    kill -0 "${_PID}" 2>/dev/null || return 1
+    grep -qa "sync.sh" "/proc/${_PID}/cmdline" 2>/dev/null || return 1
+    return 0
+}
+
 if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
     OLD_PID=$(cat "${LOCK_DIR}/pid" 2>/dev/null)
-    if [ -n "${OLD_PID}" ] && kill -0 "${OLD_PID}" 2>/dev/null; then
+    if [ -z "${OLD_PID}" ]; then
+        # Mikro yarış durumu için kısa bekleme
+        sleep 1
+        OLD_PID=$(cat "${LOCK_DIR}/pid" 2>/dev/null)
+    fi
+    if [ -n "${OLD_PID}" ] && is_process_sync "${OLD_PID}"; then
         exit 0
     fi
-    # Eski/çökmüş kilit kalıntısını temizle
+    # Eski/çökmüş veya PID çakışması olan sahte kilidi temizle
     rm -rf "${LOCK_DIR}" 2>/dev/null
     if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
         exit 0
