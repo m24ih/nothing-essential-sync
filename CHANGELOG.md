@@ -2,6 +2,15 @@
 
 All notable changes to the **Nothing Essential Sync** module will be documented in this file.
 
+## [v1.2.3] - 2026-10-10
+
+### Fixed & Hardened
+- **Stale PID Deadlock Prevention**: Replaced naive `kill -0 $OLD_PID` lock validation with strict `/proc/$PID/cmdline` verification; prevents unrelated system processes or thread IDs (recycled by the OS after reboot or abnormal termination) from permanently blocking sync operations.
+- **Boot & Storage Mount Race Guard**: Hardened `service.sh` to wait until `/storage/emulated/0` is fully connected and mounted before launching background sync workers, resolving `Transport endpoint is not connected` errors after device reboots and root/KernelSU-Next updates.
+- **Boot Lock Cleanup**: Added automatic removal of stale lock files and temporary working directories upon background daemon startup.
+- **Environment & Linker Sanitization**: Sanitized `PATH` and explicitly unset `LD_LIBRARY_PATH` in `service.sh` and `sync.sh` to prevent Android Bionic linker failures (`CANNOT LINK EXECUTABLE "sed": library "libc.so" not found`) during early boot execution.
+- **Deployment Daemon Refresh**: Updated `deploy.sh` to cleanly restart running daemon workers and inotify observers upon deployment.
+
 ## [v1.2.2] - 2026-10-06
 
 ### Added
