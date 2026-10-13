@@ -2,7 +2,19 @@
 
 All notable changes to the **Nothing Essential Sync** module will be documented in this file.
 
-## [v1.2.3] - 2026-10-10
+## [v1.3.0] - 2026-10-13
+
+### Added
+- **Live Status Badge in WebUI**: Added an animated, Nothing OS styled status pill (`Idle`, `Waiting AI`, `Syncing`) in the WebUI header reporting real-time execution state via `status.json`.
+- **Doze & Power-Aware Daemon (`service.sh`)**: Added `is_screen_on` helper (checking `dumpsys window` / `display` / `power`) relaxing background checks to 600s during screen-off/Doze to eliminate battery wake locks.
+- **Database Modification Guard (`is_db_modified`)**: Added high-efficiency `mtime` checking against `last_sync_time.txt` to avoid spawning subprocesses when database files have not changed.
+
+### Performance & Optimization
+- **Single-Pass SQLite Batch Processing**: Eliminated the N+1 query bottleneck in `sync.sh` (where ~20 separate `sqlite3` CLI processes were executed per card). All cards, media resources, tasks (`card_events`), and AI analyses are now extracted in a single consolidated SQL query with an ultra-lightweight stream demuxer, reducing sync times from seconds to sub-100 milliseconds.
+- **Incremental WebUI Log Reader**: Switched WebUI log fetching to `tail -n 100` to prevent IPC bloat and WebView lags as logs grow.
+
+### Modernization
+- **English-First Standardization**: Standardized all internal code comments, daemon/sync engine terminal logs, and WebUI strings to English while preserving localized Obsidian note template dictionaries (`tr`, `de`, `fr`, `es`, `en`).
 
 ### Fixed & Hardened
 - **Stale PID Deadlock Prevention**: Replaced naive `kill -0 $OLD_PID` lock validation with strict `/proc/$PID/cmdline` verification; prevents unrelated system processes or thread IDs (recycled by the OS after reboot or abnormal termination) from permanently blocking sync operations.
