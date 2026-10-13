@@ -15,11 +15,12 @@ BASE_DIR="/data/adb/essential-sync"
 SQLITE_BIN="${BASE_DIR}/bin/sqlite3"
 STATE_FILE="${BASE_DIR}/last_sync_time.txt"
 LOG_FILE="${BASE_DIR}/sync.log"
+STATUS_FILE="${BASE_DIR}/status.json"
 
 SOURCE_DB_DIR="/data/data/com.nothing.ntessentialspace/databases"
 SOURCE_DB="${SOURCE_DB_DIR}/essential_space_database"
 
-# Güvenli Konfigürasyon Ayrıştırıcı (Shell Injection / LPE Koruması)
+# Safe configuration parser (Shell injection & LPE protection)
 CONFIG_FILE="${BASE_DIR}/config.env"
 get_cfg() {
     _KEY="$1"
@@ -37,11 +38,11 @@ get_cfg() {
 
 DEST_NOTES=$(get_cfg "DEST_NOTES" "/storage/emulated/0/Documents/EssentialSpaceNotes/00-Zettelkasten")
 DEST_ATTACHMENTS=$(get_cfg "DEST_ATTACHMENTS" "/storage/emulated/0/Documents/EssentialSpaceNotes/attachments")
-TIME_FORMAT=$(get_cfg "TIME_FORMAT" "%Y-%m-%d %H.%M")
+TIME_FORMAT=$(get_cfg "TIME_FORMAT" "%Y-%m-%d %H.%M" | tr -d "'\"")
 NOTE_TAG=$(get_cfg "NOTE_TAG" "inbox/essential-space")
 NOTE_LANG=$(get_cfg "NOTE_LANG" "auto")
 
-# Sistem dili algılama (persist.sys.locale -> ro.product.locale -> fallback: en)
+# Detect system language for note template strings (persist.sys.locale -> ro.product.locale -> fallback: en)
 DETECTED_LANG="en"
 if [ "${NOTE_LANG}" = "auto" ] || [ -z "${NOTE_LANG}" ]; then
     LOCALE_PROP=$(getprop persist.sys.locale 2>/dev/null)
@@ -51,16 +52,13 @@ if [ "${NOTE_LANG}" = "auto" ] || [ -z "${NOTE_LANG}" ]; then
         de*|DE*) DETECTED_LANG="de" ;;
         fr*|FR*) DETECTED_LANG="fr" ;;
         es*|ES*) DETECTED_LANG="es" ;;
-        it*|IT*) DETECTED_LANG="it" ;;
-        ru*|RU*) DETECTED_LANG="ru" ;;
-        ja*|JA*) DETECTED_LANG="ja" ;;
-        zh*|ZH*) DETECTED_LANG="zh" ;;
         *)       DETECTED_LANG="en" ;;
     esac
 else
     DETECTED_LANG="${NOTE_LANG}"
 fi
 
+# Multi-language dictionary for Obsidian note templates
 case "${DETECTED_LANG}" in
     tr)
         STR_SUMMARY="AI Özeti"
@@ -73,17 +71,6 @@ case "${DETECTED_LANG}" in
         STR_ANALYSIS="Analiz & Detaylar"
         STR_EXTRACTED_INFO="Önemli Bilgi"
         STR_TASKS="Görevler"
-        LOG_WARN_NO_DB="UYARI: Essential Space veritabanı bulunamadı"
-        LOG_ERR_NO_SQLITE="HATA: sqlite3 ikili dosyası bulunamadı veya çalıştırılamıyor"
-        LOG_CARDS_FOUND="Yeni kartlar bulundu. Senkronizasyon başlatılıyor..."
-        LOG_WAITING_AI="⏳ Nothing AI analizi bekleniyor"
-        LOG_AI_TIMEOUT="⚠️ Nothing AI bekleme süresi doldu"
-        LOG_AI_TIMEOUT_DESC="Kartlar mevcut haliyle senkronize ediliyor..."
-        LOG_AI_DONE="✨ Nothing AI analizi tamamlandı"
-        LOG_START_SYNC="Senkronizasyon başlatılıyor..."
-        LOG_SYNCED="Senkronize edildi"
-        LOG_COMPLETED="Senkronizasyon tamamlandı. Durum güncellendi"
-        LOG_CLEANED_OLD="Temizlendi (Eski geçici not)"
         ;;
     de)
         STR_SUMMARY="KI-Zusammenfassung"
@@ -96,17 +83,6 @@ case "${DETECTED_LANG}" in
         STR_ANALYSIS="Analyse & Details"
         STR_EXTRACTED_INFO="Wichtige Information"
         STR_TASKS="Aufgaben"
-        LOG_WARN_NO_DB="WARNUNG: Essential Space-Datenbank nicht gefunden"
-        LOG_ERR_NO_SQLITE="FEHLER: sqlite3-Binärdatei nicht gefunden oder nicht ausführbar"
-        LOG_CARDS_FOUND="Neue Karten gefunden. Synchronisierung wird gestartet..."
-        LOG_WAITING_AI="⏳ Warte auf Nothing AI-Analyse"
-        LOG_AI_TIMEOUT="⚠️ Nothing AI-Zeitüberschreitung"
-        LOG_AI_TIMEOUT_DESC="Karten werden mit aktuellen Daten synchronisiert..."
-        LOG_AI_DONE="✨ Nothing AI-Analyse abgeschlossen"
-        LOG_START_SYNC="Synchronisierung wird gestartet..."
-        LOG_SYNCED="Synchronisiert"
-        LOG_COMPLETED="Synchronisierung abgeschlossen. Status aktualisiert"
-        LOG_CLEANED_OLD="Bereinigt (Alte temporäre Notiz)"
         ;;
     fr)
         STR_SUMMARY="Résumé IA"
@@ -119,17 +95,6 @@ case "${DETECTED_LANG}" in
         STR_ANALYSIS="Analyse & Détails"
         STR_EXTRACTED_INFO="Information importante"
         STR_TASKS="Tâches"
-        LOG_WARN_NO_DB="AVERTISSEMENT : Base de données Essential Space introuvable"
-        LOG_ERR_NO_SQLITE="ERREUR : Exécutable sqlite3 introuvable ou non exécutable"
-        LOG_CARDS_FOUND="Nouvelles cartes trouvées. Démarrage de la synchronisation..."
-        LOG_WAITING_AI="⏳ En attente de l'analyse Nothing AI"
-        LOG_AI_TIMEOUT="⚠️ Délai d'attente Nothing AI dépassé"
-        LOG_AI_TIMEOUT_DESC="Synchronisation avec les données actuelles..."
-        LOG_AI_DONE="✨ Analyse Nothing AI terminée"
-        LOG_START_SYNC="Démarrage de la synchronisation..."
-        LOG_SYNCED="Synchronisé"
-        LOG_COMPLETED="Synchronisation terminée. État mis à jour"
-        LOG_CLEANED_OLD="Nettoyé (Ancienne note temporaire)"
         ;;
     es)
         STR_SUMMARY="Resumen de IA"
@@ -142,17 +107,6 @@ case "${DETECTED_LANG}" in
         STR_ANALYSIS="Análisis & Detalles"
         STR_EXTRACTED_INFO="Información importante"
         STR_TASKS="Tareas"
-        LOG_WARN_NO_DB="ADVERTENCIA: Base de datos Essential Space no encontrada"
-        LOG_ERR_NO_SQLITE="ERROR: Binario sqlite3 no encontrado o no ejecutable"
-        LOG_CARDS_FOUND="Nuevas tarjetas encontradas. Iniciando sincronización..."
-        LOG_WAITING_AI="⏳ Esperando análisis de Nothing AI"
-        LOG_AI_TIMEOUT="⚠️ Tiempo de espera de Nothing AI agotado"
-        LOG_AI_TIMEOUT_DESC="Sincronizando con los datos actuales..."
-        LOG_AI_DONE="✨ Análisis de Nothing AI completado"
-        LOG_START_SYNC="Iniciando sincronización..."
-        LOG_SYNCED="Sincronizado"
-        LOG_COMPLETED="Sincronización completada. Estado actualizado"
-        LOG_CLEANED_OLD="Limpiado (Nota temporal anterior)"
         ;;
     *)
         # Default (en)
@@ -166,23 +120,17 @@ case "${DETECTED_LANG}" in
         STR_ANALYSIS="Detailed Analysis"
         STR_EXTRACTED_INFO="Key Information"
         STR_TASKS="Tasks"
-        LOG_WARN_NO_DB="WARNING: Essential Space database not found"
-        LOG_ERR_NO_SQLITE="ERROR: sqlite3 binary not found or not executable"
-        LOG_CARDS_FOUND="New cards found. Starting sync..."
-        LOG_WAITING_AI="⏳ Waiting for Nothing AI analysis"
-        LOG_AI_TIMEOUT="⚠️ Nothing AI wait timeout"
-        LOG_AI_TIMEOUT_DESC="Syncing cards with current data..."
-        LOG_AI_DONE="✨ Nothing AI analysis completed"
-        LOG_START_SYNC="Starting sync..."
-        LOG_SYNCED="Synced"
-        LOG_COMPLETED="Sync completed. State updated"
-        LOG_CLEANED_OLD="Cleaned (Old temporary note)"
         ;;
 esac
 
+# Live status reporter helper for WebUI and system status tracking
+set_status() {
+    echo "{\"status\": \"$1\", \"updated_at\": $(date +%s)}" > "${STATUS_FILE}" 2>/dev/null || true
+}
+
 LOCK_DIR="/data/local/tmp/essential_sync.lock"
 
-# 0. Paralel veya çifte tetiklemeyi önleme kilidi (Atomik mkdir)
+# Process check helper to prevent parallel or double executions
 is_process_sync() {
     _PID="$1"
     [ -z "${_PID}" ] && return 1
@@ -191,25 +139,27 @@ is_process_sync() {
     return 0
 }
 
+# Acquire atomic execution lock
 if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
     OLD_PID=$(cat "${LOCK_DIR}/pid" 2>/dev/null)
     if [ -z "${OLD_PID}" ]; then
-        # Mikro yarış durumu için kısa bekleme
+        # Micro race condition grace period
         sleep 1
         OLD_PID=$(cat "${LOCK_DIR}/pid" 2>/dev/null)
     fi
     if [ -n "${OLD_PID}" ] && is_process_sync "${OLD_PID}"; then
         exit 0
     fi
-    # Eski/çökmüş veya PID çakışması olan sahte kilidi temizle
+    # Clean stale/dead lock
     rm -rf "${LOCK_DIR}" 2>/dev/null
     if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
         exit 0
     fi
 fi
 echo $$ > "${LOCK_DIR}/pid"
+set_status "syncing"
 
-# inotifyd olay patlamalarını söndürmek için kısa debounce
+# Short debounce to quell inotify event bursts
 sleep 1
 
 TMP_DIR="/data/local/tmp/essential_tmp_$$"
@@ -217,7 +167,7 @@ TMP_DIR="/data/local/tmp/essential_tmp_$$"
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "${LOG_FILE}" 2>/dev/null
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-    # Log dosyasını 512 KB ile sınırla (otomatik rotasyon)
+    # Limit log file to 512 KB (automatic rotation)
     if [ -f "${LOG_FILE}" ] && [ "$(wc -c < "${LOG_FILE}" 2>/dev/null || echo 0)" -gt 512000 ]; then
         tail -n 1000 "${LOG_FILE}" > "${LOG_FILE}.tmp" 2>/dev/null && mv -f "${LOG_FILE}.tmp" "${LOG_FILE}" 2>/dev/null
     fi
@@ -227,28 +177,28 @@ cleanup() {
     rm -rf "${TMP_DIR}" 2>/dev/null
     if [ -f "${LOCK_DIR}/pid" ] && [ "$(cat "${LOCK_DIR}/pid" 2>/dev/null)" = "$$" ]; then
         rm -rf "${LOCK_DIR}" 2>/dev/null
+        set_status "idle"
     fi
 }
 trap cleanup EXIT INT TERM
 
-# 1. Kontroller
+# 1. Environment & Pre-condition checks
 if [ ! -f "${SOURCE_DB}" ]; then
-    log "${LOG_WARN_NO_DB}: ${SOURCE_DB}"
+    log "WARNING: Essential Space database not found: ${SOURCE_DB}"
     exit 0
 fi
 
 if [ ! -x "${SQLITE_BIN}" ]; then
-    log "${LOG_ERR_NO_SQLITE}: ${SQLITE_BIN}"
+    log "ERROR: sqlite3 binary not found or not executable: ${SQLITE_BIN}"
     exit 1
 fi
 
-mkdir -p "${DEST_NOTES}" "${DEST_ATTACHMENTS}" "${TMP_DIR}"
+mkdir -p "${DEST_NOTES}" "${DEST_ATTACHMENTS}" "${TMP_DIR}/cards"
 
-# 2. Doğrudan Salt-Okunur Veritabanı Erişimi (Zero Flash Wear / Zero Lock)
-# Canlı veritabanını diske kopyalamak yerine SQLite URI mode=ro ile doğrudan güvenle okuyoruz.
+# 2. Direct Read-Only Database Access (Zero Flash Wear / Zero Lock)
 SNAP_DB="file:${SOURCE_DB}?mode=ro"
 
-# 3. Son senkronizasyon zamanını oku
+# 3. Read last synchronization timestamp
 LAST_SYNC=0
 if [ -f "${STATE_FILE}" ]; then
     LAST_SYNC=$(cat "${STATE_FILE}" 2>/dev/null | tr -d '\r\n')
@@ -257,12 +207,12 @@ if [ -f "${STATE_FILE}" ]; then
     esac
 fi
 
-# 4. Henüz çözümlenmemiş geçici taslak/placeholder dosyaları tespit et
+# 4. Detect unresolved draft/placeholder note files
 PLACEHOLDER_IDS=""
 for PH in "${DEST_NOTES}"/*" - ${STR_DEFAULT_TITLE}.md" "${DEST_NOTES}"/*" - Essential Note.md" "${DEST_NOTES}"/*" - Essential Not.md"; do
     [ -f "${PH}" ] || continue
     PID=$(grep -m1 '^id: ' "${PH}" 2>/dev/null | awk '{print $2}' | tr -d '\r\n')
-    # SQL Injection Koruması: Sadece geçerli 36 karakterlik UUID'leri kabul et
+    # SQL injection protection: only accept valid 36-char UUIDs
     if [ -n "${PID}" ] && echo "${PID}" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
         if [ -z "${PLACEHOLDER_IDS}" ]; then
             PLACEHOLDER_IDS="'${PID}'"
@@ -278,18 +228,16 @@ else
     QUERY_FILTER="(create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC} OR card_id IN (SELECT card_id FROM card_events WHERE update_time > ${LAST_SYNC} AND deleted = 0))"
 fi
 
-# Yeni veya henüz güncellenmiş/çözümlenmemiş kartları çek
-CARDS_SQL="SELECT card_id, create_time, update_time, strftime('${TIME_FORMAT}', create_time/1000, 'unixepoch', 'localtime'), strftime('%Y-%m-%d %H:%M:%S', create_time/1000, 'unixepoch', 'localtime') FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 ORDER BY create_time ASC, update_time ASC;"
-CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "${CARDS_SQL}")
-
-if [ -z "${CARDS}" ]; then
-    # Yeni veya güncellenmiş kart yok
+# Fast O(1) existence check for new or updated cards
+HAS_CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT 1 FROM cards WHERE ${QUERY_FILTER} AND soft_delete_at <= 0 LIMIT 1;")
+if [ -z "${HAS_CARDS}" ]; then
+    # No new or updated cards to process
     exit 0
 fi
 
-# AI analizinin bitmesini bekleme mekanizması (Graceful Wait):
-# Sadece yeni oluşturulmuş veya son 5 dakika içinde aktif işlem gören kartları bekle.
-# Eski çözümlenmemiş taslakların yeni senkronizasyonları 150s kilitlemesini engelle.
+# Phase 1: Graceful AI Wait Guard
+# Only wait for cards created or updated within the last 5 minutes (300,000 ms).
+# Avoids stalling new syncs for 150s on older unresolved drafts.
 PENDING_WAIT_FILTER="(create_time > ${LAST_SYNC} OR update_time > ${LAST_SYNC}) AND (strftime('%s', 'now')*1000 - create_time) < 300000 AND soft_delete_at <= 0 AND (analysis_state = 0 OR summary IS NULL OR trim(summary) = '' OR title IS NULL OR trim(title) = '')"
 
 MAX_WAIT_SECONDS=150
@@ -302,10 +250,12 @@ while [ ${ELAPSED} -lt ${MAX_WAIT_SECONDS} ]; do
         break
     fi
 
-    # Her 6 saniyede bir log bildirimi üret (WebUI Dashboard'da canlı akar)
+    set_status "waiting_ai"
+
+    # Emit progress log every 6 seconds (visible on WebUI Dashboard)
     if [ $((ELAPSED % 6)) -eq 0 ]; then
         PENDING_TYPES=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT group_concat(type) FROM cards WHERE ${PENDING_WAIT_FILTER};")
-        log "${LOG_WAITING_AI} (${PENDING_TYPES}) [${ELAPSED}s/${MAX_WAIT_SECONDS}s]..."
+        log "⏳ Waiting for Nothing AI analysis (${PENDING_TYPES}) [${ELAPSED}s/${MAX_WAIT_SECONDS}s]..."
     fi
 
     sleep ${POLL_INTERVAL}
@@ -314,29 +264,157 @@ done
 
 if [ ${ELAPSED} -gt 0 ]; then
     if [ ${ELAPSED} -ge ${MAX_WAIT_SECONDS} ]; then
-        log "${LOG_AI_TIMEOUT} (${MAX_WAIT_SECONDS}s). ${LOG_AI_TIMEOUT_DESC}"
+        log "⚠️ Nothing AI wait timeout (${MAX_WAIT_SECONDS}s). Syncing cards with current data..."
     else
-        log "${LOG_AI_DONE} (${ELAPSED}s)! ${LOG_START_SYNC}"
+        log "✨ Nothing AI analysis completed (${ELAPSED}s)! Starting sync..."
     fi
-    # Son güncel kart listesini tekrar çek
-    CARDS=$("${SQLITE_BIN}" "${SNAP_DB}" "${CARDS_SQL}")
+    set_status "syncing"
 fi
 
-log "${LOG_CARDS_FOUND}"
+log "New cards found. Starting sync..."
 
-echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME UPDATE_TIME DATE_STR DATE_ISO; do
+# Phase 2: Consolidated Batch Query & Stream Demuxing
+# Single SQL batch extraction for cards, resources, tasks, and analyses
+BATCH_SQL="SELECT
+  '===ES_SYNC_CARD_START:' || c.card_id || '===' || char(10) ||
+  '===ES_SYNC_META===' || char(10) ||
+  'CARD_ID=' || c.card_id || char(10) ||
+  'CREATE_TIME=' || c.create_time || char(10) ||
+  'UPDATE_TIME=' || c.update_time || char(10) ||
+  'DATE_STR=' || coalesce(strftime('${TIME_FORMAT}', c.create_time/1000, 'unixepoch', 'localtime'), '') || char(10) ||
+  'DATE_ISO=' || coalesce(strftime('%Y-%m-%d %H:%M:%S', c.create_time/1000, 'unixepoch', 'localtime'), '') || char(10) ||
+  'CARD_TYPE=' || coalesce(c.type, 'NOTE') || char(10) ||
+  'IMAGE_URI=' || coalesce((SELECT data FROM card_resources WHERE card_id = c.card_id AND raw_type = 'IMAGE' LIMIT 1), '') || char(10) ||
+  'AUDIO_URI=' || coalesce((SELECT data FROM card_resources WHERE card_id = c.card_id AND raw_type IN ('AUDIO', 'RECORDING') LIMIT 1), '') || char(10) ||
+  'MAX_EV_TIME=' || coalesce((SELECT max(update_time) FROM card_events WHERE card_id = c.card_id AND deleted = 0), 0) || char(10) ||
+  '===ES_SYNC_TITLE===' || char(10) ||
+  coalesce(c.title, '') || char(10) ||
+  CASE WHEN c.summary IS NOT NULL AND trim(c.summary) != ''
+    THEN '===ES_SYNC_SUMMARY===' || char(10) || c.summary || char(10)
+    ELSE ''
+  END ||
+  coalesce((
+    SELECT '===ES_SYNC_NOTE_TEXT===' || char(10) || data || char(10)
+    FROM card_resources
+    WHERE card_id = c.card_id AND raw_type IN ('TEXT', 'NOTE_TEXT') AND data IS NOT NULL AND trim(data) != ''
+    LIMIT 1
+  ), '') ||
+  coalesce((
+    SELECT '===ES_SYNC_TRANSCRIPTION===' || char(10) || data || char(10)
+    FROM card_resources
+    WHERE card_id = c.card_id AND raw_type = 'TRANSCRIPTION' AND data IS NOT NULL AND trim(data) != ''
+    LIMIT 1
+  ), '') ||
+  coalesce((
+    SELECT '===ES_SYNC_EVENTS===' || char(10) ||
+      group_concat(
+        '- [' || CASE WHEN \"check\" = 1 THEN 'x' ELSE ' ' END || '] ' ||
+        CASE WHEN content IS NOT NULL AND trim(content) != '' THEN content ELSE coalesce(title, '') END ||
+        CASE
+          WHEN time IS NOT NULL AND time > 0 AND strftime('%Y-%m-%d', time/1000, 'unixepoch', 'localtime') = strftime('%Y-%m-%d', c.create_time/1000, 'unixepoch', 'localtime')
+            THEN ' ⏰ ' || strftime('%H:%M', time/1000, 'unixepoch', 'localtime')
+          WHEN time IS NOT NULL AND time > 0
+            THEN ' 📅 ' || strftime('%Y-%m-%d %H:%M', time/1000, 'unixepoch', 'localtime')
+          ELSE ''
+        END,
+        char(10)
+      ) || char(10)
+    FROM (
+      SELECT * FROM card_events
+      WHERE card_id = c.card_id AND deleted = 0 AND ((content IS NOT NULL AND trim(content) != '') OR (title IS NOT NULL AND trim(title) != ''))
+      ORDER BY card_event_id ASC
+    )
+    HAVING count(*) > 0
+  ), '') ||
+  coalesce((
+    SELECT '===ES_SYNC_ANALYSES===' || char(10) ||
+      group_concat(
+        '===ES_SYNC_ANALYSIS_ITEM_START===' || char(10) ||
+        'A_TYPE=' || raw_type || char(10) ||
+        'A_TITLE=' || replace(coalesce(CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.title') ELSE '' END, ''), char(10), ' ') || char(10) ||
+        'A_TIME=' || replace(coalesce(CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.timestamp_reference') ELSE '' END, ''), char(10), ' ') || char(10) ||
+        '===ES_SYNC_A_CONTENT===' || char(10) ||
+        coalesce(CASE WHEN json_valid(metadata) THEN coalesce(json_extract(metadata, '$.bulletPointItem'), json_extract(metadata, '$.content'), json_extract(metadata, '$.detailed_summary'), json_extract(metadata, '$.extractedInformation'), '') ELSE metadata END, '') || char(10) ||
+        '===ES_SYNC_ANALYSIS_ITEM_END===',
+        char(10)
+      ) || char(10)
+    FROM (
+      SELECT * FROM card_analysis
+      WHERE card_id = c.card_id
+      ORDER BY card_analysis_id ASC
+    )
+    HAVING count(*) > 0
+  ), '') ||
+  '===ES_SYNC_CARD_END==='
+FROM cards c
+WHERE ${QUERY_FILTER} AND c.soft_delete_at <= 0
+ORDER BY c.create_time ASC, c.update_time ASC;"
+
+"${SQLITE_BIN}" "${SNAP_DB}" "${BATCH_SQL}" | awk -v outdir="${TMP_DIR}/cards" '
+BEGIN {
+    card_id = "";
+    cur_file = "";
+    a_idx = 0;
+}
+/^===ES_SYNC_CARD_START:/ {
+    line = $0;
+    sub(/^===ES_SYNC_CARD_START:/, "", line);
+    sub(/===$/, "", line);
+    card_id = line;
+    cur_file = "";
+    a_idx = 0;
+    next;
+}
+/^===ES_SYNC_META===$/ { cur_file = outdir "/" card_id ".meta"; next; }
+/^===ES_SYNC_TITLE===$/ { cur_file = outdir "/" card_id ".title"; next; }
+/^===ES_SYNC_SUMMARY===$/ { cur_file = outdir "/" card_id ".summary"; next; }
+/^===ES_SYNC_NOTE_TEXT===$/ { cur_file = outdir "/" card_id ".note_text"; next; }
+/^===ES_SYNC_TRANSCRIPTION===$/ { cur_file = outdir "/" card_id ".transcription"; next; }
+/^===ES_SYNC_EVENTS===$/ { cur_file = outdir "/" card_id ".events"; next; }
+/^===ES_SYNC_ANALYSES===$/ { cur_file = ""; next; }
+
+/^===ES_SYNC_ANALYSIS_ITEM_START===$/ {
+    a_idx++;
+    cur_file = outdir "/" card_id ".a_" a_idx ".meta";
+    next;
+}
+/^===ES_SYNC_A_CONTENT===$/ {
+    cur_file = outdir "/" card_id ".a_" a_idx ".content";
+    next;
+}
+/^===ES_SYNC_ANALYSIS_ITEM_END===$/ {
+    cur_file = "";
+    next;
+}
+/^===ES_SYNC_CARD_END===$/ {
+    cur_file = "";
+    card_id = "";
+    next;
+}
+cur_file != "" {
+    print >> cur_file;
+}
+'
+
+for META_FILE in "${TMP_DIR}/cards/"*.meta; do
+    [ -f "${META_FILE}" ] || continue
+
+    CARD_ID=$(grep '^CARD_ID=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+    CREATE_TIME=$(grep '^CREATE_TIME=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+    UPDATE_TIME=$(grep '^UPDATE_TIME=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+    DATE_STR=$(grep '^DATE_STR=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+    DATE_ISO=$(grep '^DATE_ISO=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+    CARD_TYPE=$(grep '^CARD_TYPE=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+    IMAGE_URI=$(grep '^IMAGE_URI=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+    AUDIO_URI=$(grep '^AUDIO_URI=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+    MAX_EV_TIME=$(grep '^MAX_EV_TIME=' "${META_FILE}" 2>/dev/null | cut -d'=' -f2-)
+
     [ -z "${CARD_ID}" ] && continue
 
-    TITLE=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT coalesce(title, '') FROM cards WHERE card_id = '${CARD_ID}';")
-    SUMMARY=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT coalesce(summary, '') FROM cards WHERE card_id = '${CARD_ID}';")
-    CARD_TYPE=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT coalesce(type, 'NOTE') FROM cards WHERE card_id = '${CARD_ID}';")
+    TITLE=""
+    [ -f "${TMP_DIR}/cards/${CARD_ID}.title" ] && TITLE=$(cat "${TMP_DIR}/cards/${CARD_ID}.title" 2>/dev/null)
 
-    NOTE_TEXT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type IN ('TEXT', 'NOTE_TEXT') LIMIT 1;")
-    TRANSCRIPTION=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type = 'TRANSCRIPTION' LIMIT 1;")
-    IMAGE_URI=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type = 'IMAGE' LIMIT 1;")
-    AUDIO_URI=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT data FROM card_resources WHERE card_id = '${CARD_ID}' AND raw_type IN ('AUDIO', 'RECORDING') LIMIT 1;")
-
-    # Medya kopyalama (Görsel)
+    # Media copy (Image)
     IMG_FILENAME=""
     if [ -n "${IMAGE_URI}" ]; then
         IMG_SRC=$(echo "${IMAGE_URI}" | sed 's|^file://||')
@@ -347,15 +425,15 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME UPDATE_TIME DATE_STR
         fi
     fi
 
-    # Medya kopyalama (Ses)
+    # Media copy (Audio)
     AUDIO_FILENAME=""
     if [ -n "${AUDIO_URI}" ]; then
         AUDIO_SRC=$(echo "${AUDIO_URI}" | sed 's|^file://||')
         if [ -f "${AUDIO_SRC}" ]; then
             AUDIO_FILENAME=$(basename "${AUDIO_SRC}")
-            # Obsidian .aac uzantılı dosyaları yerel ses oynatıcısında oynatamaz.
-            # Ancak Nothing OS bu kayıtları ISO MP42 (M4A) formatında üretir.
-            # Uzantıyı .m4a yaparak Obsidian'da doğrudan oynatılabilir (HTML5 audio) hale getiriyoruz.
+            # Obsidian cannot play .aac files in its native audio player.
+            # However Nothing OS creates these recordings in ISO MP42 (M4A) format.
+            # Changing extension to .m4a makes them playable directly in Obsidian.
             case "${AUDIO_FILENAME}" in
                 *.aac) AUDIO_FILENAME="${AUDIO_FILENAME%.aac}.m4a" ;;
             esac
@@ -364,27 +442,26 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME UPDATE_TIME DATE_STR
         fi
     fi
 
-    # Dosya adı temizleme
+    # Sanitize title for filename
     CLEAN_TITLE=$(echo "${TITLE}" | tr '/\\:*?"<>|#' '_' | tr '\n\r' ' ' | sed 's/^[ .]*//; s/[ .]*$//' | cut -c 1-50)
-    if [ -z "${CLEAN_TITLE}" ]; then
-        CLEAN_TITLE="${STR_DEFAULT_TITLE}"
-    fi
+    [ -z "${CLEAN_TITLE}" ] && CLEAN_TITLE="${STR_DEFAULT_TITLE}"
 
     SHORT_ID=$(echo "${CARD_ID}" | cut -c 1-8)
     TARGET_FILENAME="${DATE_STR} - ${CLEAN_TITLE}.md"
 
-    # Varsa bu karta ait eski/farklı isimli dosyayı temizle (placeholder veya eski başlıklı dosya)
+    # Remove previous temporary or renamed placeholder note for this card
     for EXISTING_FILE in "${DEST_NOTES}/${DATE_STR} - "*.md; do
         [ -f "${EXISTING_FILE}" ] || continue
         if grep -q "id: ${CARD_ID}" "${EXISTING_FILE}" 2>/dev/null; then
             EXISTING_NAME=$(basename "${EXISTING_FILE}")
             if [ "${EXISTING_NAME}" != "${TARGET_FILENAME}" ]; then
                 rm -f "${EXISTING_FILE}" 2>/dev/null
-                log "${LOG_CLEANED_OLD}: ${EXISTING_NAME}"
+                log "Cleaned old temporary note: ${EXISTING_NAME}"
             fi
         fi
     done
 
+    # Collision resolution: if target filename already exists for a different card ID
     if [ -f "${DEST_NOTES}/${TARGET_FILENAME}" ] && ! grep -q "id: ${CARD_ID}" "${DEST_NOTES}/${TARGET_FILENAME}" 2>/dev/null; then
         TARGET_FILENAME="${DATE_STR} - ${CLEAN_TITLE} - ${SHORT_ID}.md"
     fi
@@ -393,7 +470,7 @@ echo "${CARDS}" | while IFS='|' read -r CARD_ID CREATE_TIME UPDATE_TIME DATE_STR
     TMP_NOTE="${TMP_DIR}/note.md"
     rm -f "${TMP_NOTE}" 2>/dev/null
 
-    # Markdown dosyasını oluştur
+    # Render Markdown note
     DISPLAY_TITLE="${TITLE}"
     [ -z "${DISPLAY_TITLE}" ] && DISPLAY_TITLE="${STR_DEFAULT_TITLE}"
 
@@ -409,53 +486,50 @@ tags:
 # ${DISPLAY_TITLE}
 EOF
 
-    if [ -n "${SUMMARY}" ]; then
-        ESCAPED_SUMMARY=$(echo "${SUMMARY}" | sed 's/^/> /')
-        cat <<EOF >> "${TMP_NOTE}"
+    if [ -f "${TMP_DIR}/cards/${CARD_ID}.summary" ]; then
+        SUMMARY=$(cat "${TMP_DIR}/cards/${CARD_ID}.summary" 2>/dev/null)
+        if [ -n "${SUMMARY}" ]; then
+            ESCAPED_SUMMARY=$(echo "${SUMMARY}" | sed 's/^/> /')
+            cat <<EOF >> "${TMP_NOTE}"
 
 > [!summary] ${STR_SUMMARY}
 ${ESCAPED_SUMMARY}
 EOF
+        fi
     fi
 
-    if [ -n "${NOTE_TEXT}" ]; then
-        cat <<EOF >> "${TMP_NOTE}"
+    if [ -f "${TMP_DIR}/cards/${CARD_ID}.note_text" ]; then
+        NOTE_TEXT=$(cat "${TMP_DIR}/cards/${CARD_ID}.note_text" 2>/dev/null)
+        if [ -n "${NOTE_TEXT}" ]; then
+            cat <<EOF >> "${TMP_NOTE}"
 
 ### 📝 ${STR_NOTE}
 ${NOTE_TEXT}
 EOF
+        fi
     fi
 
-    # Görevler / Yapılacaklar (card_events)
-    EVENT_ROWS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT \"check\", CASE WHEN content IS NOT NULL AND trim(content) != '' THEN content ELSE title END, time, strftime('%Y-%m-%d', time/1000, 'unixepoch', 'localtime'), strftime('%H:%M', time/1000, 'unixepoch', 'localtime') FROM card_events WHERE card_id = '${CARD_ID}' AND deleted = 0 ORDER BY card_event_id ASC;")
-    if [ -n "${EVENT_ROWS}" ]; then
-        cat <<EOF >> "${TMP_NOTE}"
+    # Tasks / Action items
+    if [ -f "${TMP_DIR}/cards/${CARD_ID}.events" ]; then
+        EVENTS_CONTENT=$(cat "${TMP_DIR}/cards/${CARD_ID}.events" 2>/dev/null)
+        if [ -n "${EVENTS_CONTENT}" ]; then
+            cat <<EOF >> "${TMP_NOTE}"
 
 ### ✅ ${STR_TASKS}
+${EVENTS_CONTENT}
 EOF
-        NOTE_DAY=$(echo "${DATE_ISO}" | cut -d' ' -f1)
-        echo "${EVENT_ROWS}" | while IFS='|' read -r EV_CHECK EV_TEXT EV_TIME EV_DATE EV_HM; do
-            [ -z "${EV_TEXT}" ] && continue
-            TASK_BOX="[ ]"
-            [ "${EV_CHECK}" = "1" ] && TASK_BOX="[x]"
-            TIME_SUFFIX=""
-            if [ -n "${EV_TIME}" ] && [ "${EV_TIME}" -gt 0 ] 2>/dev/null; then
-                if [ "${EV_DATE}" = "${NOTE_DAY}" ]; then
-                    TIME_SUFFIX=" ⏰ ${EV_HM}"
-                else
-                    TIME_SUFFIX=" 📅 ${EV_DATE} ${EV_HM}"
-                fi
-            fi
-            echo "- ${TASK_BOX} ${EV_TEXT}${TIME_SUFFIX}" >> "${TMP_NOTE}"
-        done
+        fi
     fi
 
-    if [ -n "${TRANSCRIPTION}" ]; then
-        cat <<EOF >> "${TMP_NOTE}"
+    if [ -f "${TMP_DIR}/cards/${CARD_ID}.transcription" ]; then
+        TRANSCRIPTION=$(cat "${TMP_DIR}/cards/${CARD_ID}.transcription" 2>/dev/null)
+        if [ -n "${TRANSCRIPTION}" ]; then
+            cat <<EOF >> "${TMP_NOTE}"
 
 ### 🎙️ ${STR_TRANSCRIPT}
 ${TRANSCRIPTION}
 EOF
+        fi
     fi
 
     if [ -n "${AUDIO_FILENAME}" ]; then
@@ -474,85 +548,83 @@ EOF
 EOF
     fi
 
-    # AI Analiz Bölümleri (BULLET_POINTS, INFO_EXTRACT, MEETING_*, ANSWER, FREEFORM)
-    ANALYSIS_IDS=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT card_analysis_id FROM card_analysis WHERE card_id = '${CARD_ID}' ORDER BY card_analysis_id ASC;")
-    if [ -n "${ANALYSIS_IDS}" ]; then
-        for AID in ${ANALYSIS_IDS}; do
-            [ -z "${AID}" ] && continue
-            A_TYPE=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT raw_type FROM card_analysis WHERE card_analysis_id = '${AID}';")
-            A_TITLE=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT CASE WHEN json_valid(metadata) THEN coalesce(json_extract(metadata, '$.title'), '') ELSE '' END FROM card_analysis WHERE card_analysis_id = '${AID}';")
-            A_CONTENT=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT CASE WHEN json_valid(metadata) THEN coalesce(json_extract(metadata, '$.bulletPointItem'), json_extract(metadata, '$.content'), json_extract(metadata, '$.detailed_summary'), json_extract(metadata, '$.extractedInformation'), '') ELSE metadata END FROM card_analysis WHERE card_analysis_id = '${AID}';")
-            A_TIME=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT CASE WHEN json_valid(metadata) THEN coalesce(json_extract(metadata, '$.timestamp_reference'), '') ELSE '' END FROM card_analysis WHERE card_analysis_id = '${AID}';")
+    # AI Analysis Sections
+    for A_META in "${TMP_DIR}/cards/${CARD_ID}".a_*.meta; do
+        [ -f "${A_META}" ] || continue
+        A_CONTENT_FILE="${A_META%.meta}.content"
+        [ -f "${A_CONTENT_FILE}" ] || continue
 
-            [ -z "${A_CONTENT}" ] && continue
+        A_TYPE=$(grep '^A_TYPE=' "${A_META}" 2>/dev/null | cut -d'=' -f2-)
+        A_TITLE=$(grep '^A_TITLE=' "${A_META}" 2>/dev/null | cut -d'=' -f2-)
+        A_TIME=$(grep '^A_TIME=' "${A_META}" 2>/dev/null | cut -d'=' -f2-)
+        A_CONTENT=$(cat "${A_CONTENT_FILE}" 2>/dev/null)
+        [ -z "${A_CONTENT}" ] && continue
 
-            case "${A_TYPE}" in
-                BULLET_POINTS)
-                    [ -z "${A_TITLE}" ] && A_TITLE="${STR_ANALYSIS}"
-                    FORMATTED_BULLETS=$(echo "${A_CONTENT}" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*[-*•]\{0,1\}[[:space:]]*/- /')
-                    cat <<EOF >> "${TMP_NOTE}"
+        case "${A_TYPE}" in
+            BULLET_POINTS)
+                [ -z "${A_TITLE}" ] && A_TITLE="${STR_ANALYSIS}"
+                FORMATTED_BULLETS=$(echo "${A_CONTENT}" | sed '/^[[:space:]]*$/d; s/^[[:space:]]*[-*•]\{0,1\}[[:space:]]*/- /')
+                cat <<EOF >> "${TMP_NOTE}"
 
 ### 📌 ${A_TITLE}
 ${FORMATTED_BULLETS}
 EOF
-                    ;;
-                INFO_EXTRACT)
-                    [ -z "${A_TITLE}" ] && A_TITLE="${STR_EXTRACTED_INFO}"
-                    FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
-                    cat <<EOF >> "${TMP_NOTE}"
+                ;;
+            INFO_EXTRACT)
+                [ -z "${A_TITLE}" ] && A_TITLE="${STR_EXTRACTED_INFO}"
+                FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
+                cat <<EOF >> "${TMP_NOTE}"
 
 > [!info] ${A_TITLE}
 ${FORMATTED_CONTENT}
 EOF
-                    ;;
-                MEETING_MAIN_TOPIC)
-                    [ -z "${A_TITLE}" ] && A_TITLE="${STR_KEY_TOPICS}"
-                    cat <<EOF >> "${TMP_NOTE}"
+                ;;
+            MEETING_MAIN_TOPIC)
+                [ -z "${A_TITLE}" ] && A_TITLE="${STR_KEY_TOPICS}"
+                cat <<EOF >> "${TMP_NOTE}"
 
 ### 🎯 ${A_TITLE}
 ${A_CONTENT}
 EOF
-                    ;;
-                MEETING_KEY_TOPIC_ANALYSIS)
-                    HEADER="${A_TITLE}"
-                    [ -n "${A_TIME}" ] && HEADER="${HEADER} (${A_TIME})"
-                    [ -z "${HEADER}" ] && HEADER="${STR_ANALYSIS}"
-                    FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
-                    cat <<EOF >> "${TMP_NOTE}"
+                ;;
+            MEETING_KEY_TOPIC_ANALYSIS)
+                HEADER="${A_TITLE}"
+                [ -n "${A_TIME}" ] && HEADER="${HEADER} (${A_TIME})"
+                [ -z "${HEADER}" ] && HEADER="${STR_ANALYSIS}"
+                FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
+                cat <<EOF >> "${TMP_NOTE}"
 
 > [!abstract] ${HEADER}
 ${FORMATTED_CONTENT}
 EOF
-                    ;;
-                MEETING_EMOTIONAL_SUMMARY|FREEFORM)
-                    [ -z "${A_TITLE}" ] && A_TITLE="${STR_SUMMARY}"
-                    FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
-                    cat <<EOF >> "${TMP_NOTE}"
+                ;;
+            MEETING_EMOTIONAL_SUMMARY|FREEFORM)
+                [ -z "${A_TITLE}" ] && A_TITLE="${STR_SUMMARY}"
+                FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
+                cat <<EOF >> "${TMP_NOTE}"
 
 > [!note] ${A_TITLE}
 ${FORMATTED_CONTENT}
 EOF
-                    ;;
-                ANSWER)
-                    FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
-                    cat <<EOF >> "${TMP_NOTE}"
+                ;;
+            ANSWER)
+                FORMATTED_CONTENT=$(echo "${A_CONTENT}" | sed 's/^/> /')
+                cat <<EOF >> "${TMP_NOTE}"
 
 > [!faq] Q&A
 ${FORMATTED_CONTENT}
 EOF
-                    ;;
-            esac
-        done
-    fi
+                ;;
+        esac
+    done
 
     cp -f "${TMP_NOTE}" "${TARGET_FILE}" 2>/dev/null
     chmod 660 "${TARGET_FILE}" 2>/dev/null
     rm -f "${TMP_NOTE}" 2>/dev/null
 
-    log "${LOG_SYNCED}: ${TARGET_FILENAME}"
+    log "Synced: ${TARGET_FILENAME}"
 
-    # En yüksek zaman damgasını güncelle
-    MAX_EV_TIME=$("${SQLITE_BIN}" "${SNAP_DB}" "SELECT coalesce(max(update_time), 0) FROM card_events WHERE card_id = '${CARD_ID}' AND deleted = 0;")
+    # Update state file with maximum timestamp
     NEW_STATE="${UPDATE_TIME}"
     if [ -z "${NEW_STATE}" ] || [ "${NEW_STATE}" = "0" ]; then
         NEW_STATE="${CREATE_TIME}"
@@ -573,6 +645,4 @@ EOF
     fi
 done
 
-log "${LOG_COMPLETED}: $(cat "${STATE_FILE}" 2>/dev/null)"
-
-
+log "Sync completed. State updated: $(cat "${STATE_FILE}" 2>/dev/null)"

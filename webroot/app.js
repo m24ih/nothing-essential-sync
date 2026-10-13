@@ -6,6 +6,7 @@
 const CONFIG_PATH = "/data/adb/essential-sync/config.env";
 const STATE_PATH = "/data/adb/essential-sync/last_sync_time.txt";
 const LOG_PATH = "/data/adb/essential-sync/sync.log";
+const STATUS_PATH = "/data/adb/essential-sync/status.json";
 const SYNC_SCRIPT = "/data/adb/essential-sync/sync.sh";
 
 let callbackCounter = 0;
@@ -49,7 +50,7 @@ function showToast(msg) {
     if (window.ksu && typeof window.ksu.toast === 'function') {
         try {
             window.ksu.toast(msg);
-            return; // KernelSU ortamında çift bildirim oluşmaması için HTML toast'ı tetikleme
+            return; // Prevent duplicate notifications in KernelSU environment
         } catch(e) {}
     }
     const toast = document.getElementById("toast");
@@ -159,12 +160,11 @@ async function refreshDashboard() {
     const badge = document.getElementById("daemon-badge");
     const statCount = document.getElementById("stat-count");
     const statTime = document.getElementById("stat-time");
-    const consoleBox = document.getElementById("log-console");
 
     badge.className = "badge badge-loading";
     badge.textContent = "CHECKING...";
 
-    // 1. Daemon kontrolü
+    // 1. Daemon check
     const psRes = await exec("ps -ef | grep inotifyd | grep ntessentialspace | grep -v grep");
     if (psRes.stdout && psRes.stdout.includes("inotifyd")) {
         badge.className = "badge badge-active";
@@ -174,7 +174,7 @@ async function refreshDashboard() {
         badge.textContent = "STOPPED";
     }
 
-    // 2. config.env'den not yolunu oku
+    // 2. Read notes directory from config.env
     const cfgRes = await exec(`cat "${CONFIG_PATH}" 2>/dev/null`);
     let notesDir = "/storage/emulated/0/Sync/Obsidian-Vaults/Personal-Obsidian/00-Zettelkasten";
     if (cfgRes.stdout) {
@@ -185,7 +185,7 @@ async function refreshDashboard() {
     const countRes = await exec(`ls -1 "${notesDir}"/*.md 2>/dev/null | wc -l`);
     statCount.textContent = countRes.stdout ? countRes.stdout.trim() : "0";
 
-    // 3. Son sync zamanını oku
+    // 3. Read last sync timestamp
     const timeRes = await exec(`cat "${STATE_PATH}" 2>/dev/null`);
     if (timeRes.stdout && timeRes.stdout.trim().length > 5) {
         const ms = parseInt(timeRes.stdout.trim(), 10);
@@ -199,11 +199,73 @@ async function refreshDashboard() {
         statTime.textContent = "Never";
     }
 
-    // 4. Log akışını oku (Son 25 satır)
-    const logRes = await exec(`tail -n 25 "${LOG_PATH}" 2>/dev/null`);
-    consoleBox.textContent = logRes.stdout ? logRes.stdout.trim() : "No log entries yet.";
+    // 4. Read activity logs (incremental last 100 lines)
+    await loadLogs();
+
+    // 5. Update live status badge
+    await pollStatus();
+}
+
+// Load Activity Logs (Incremental: Last 100 lines)
+async function loadLogs() {
+    const consoleBox = document.getElementById("log-console");
+    if (!consoleBox) return;
+
+    const logRes = await exec(`tail -n 100 "${LOG_PATH}" 2>/dev/null`);
+    consoleBox.textContent = logRes.stdout && logRes.stdout.trim() ? logRes.stdout.trim() : "No log entries yet.";
     consoleBox.scrollTop = consoleBox.scrollHeight;
 }
+
+// -----------------------------------------------------------------------------
+// Live Status Badge & State Machine
+// -----------------------------------------------------------------------------
+function updateStatusBadge(status) {
+    const badge = document.getElementById("status-badge");
+    if (!badge) return;
+
+    const normalized = (status || "idle").toLowerCase().trim();
+    if (normalized === "waiting_ai" || normalized === "ai_analysis") {
+        badge.className = "status-badge status-waiting_ai";
+        badge.textContent = "AI Analysis";
+    } else if (normalized === "syncing" || normalized === "processing") {
+        badge.className = "status-badge status-syncing";
+        badge.textContent = "Syncing";
+    } else {
+        badge.className = "status-badge status-idle";
+        badge.textContent = "Idle";
+    }
+}
+
+let isPollingStatus = false;
+async function pollStatus() {
+    if (isPollingStatus) return;
+    isPollingStatus = true;
+    try {
+        const res = await exec(`cat "${STATUS_PATH}" 2>/dev/null`);
+        if (res.stdout && res.stdout.trim().startsWith("{")) {
+            try {
+                const data = JSON.parse(res.stdout.trim());
+                updateStatusBadge(data.status);
+            } catch (e) {
+                // Ignore transient JSON parse error during atomic file write
+            }
+        } else {
+            updateStatusBadge("idle");
+        }
+    } catch (err) {
+        updateStatusBadge("idle");
+    } finally {
+        isPollingStatus = false;
+    }
+}
+
+let statusPollTimer = null;
+function startStatusPolling() {
+    if (statusPollTimer) clearInterval(statusPollTimer);
+    pollStatus();
+    statusPollTimer = setInterval(pollStatus, 2500);
+}
+
 
 // Load Settings
 async function loadConfig() {
@@ -318,8 +380,10 @@ const syncBtn = document.getElementById("btn-sync-now");
 if (syncBtn) {
     syncBtn.addEventListener("click", async () => {
         showToast("Running sync...");
+        updateStatusBadge("syncing");
         await exec(`sh "${SYNC_SCRIPT}"`);
         showToast("Sync finished!");
+        await pollStatus();
         refreshDashboard();
     });
 }
@@ -327,8 +391,8 @@ if (syncBtn) {
 // Refresh Log Button
 const refreshLogBtn = document.getElementById("btn-refresh-log");
 if (refreshLogBtn) {
-    refreshLogBtn.addEventListener("click", () => {
-        refreshDashboard();
+    refreshLogBtn.addEventListener("click", async () => {
+        await loadLogs();
         showToast("Logs refreshed");
     });
 }
@@ -346,8 +410,10 @@ if (resetBtn) {
         if (confirm("Are you sure? This will reset the sync pointer and re-process all notes in Essential Space.")) {
             await exec(`echo "0" > "${STATE_PATH}"`);
             showToast("Pointer reset! Running full sync...");
+            updateStatusBadge("syncing");
             await exec(`sh "${SYNC_SCRIPT}"`);
             showToast("Full sync complete!");
+            await pollStatus();
             refreshDashboard();
         }
     });
@@ -356,8 +422,8 @@ if (resetBtn) {
 // -----------------------------------------------------------------------------
 // Software Update Logic (KernelSU, Magisk, MMRL)
 // -----------------------------------------------------------------------------
-let CURRENT_VERSION = "v1.2.2";
-let CURRENT_VERSION_CODE = 122;
+let CURRENT_VERSION = "v1.2.3";
+let CURRENT_VERSION_CODE = 123;
 const STABLE_UPDATE_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update.json";
 const NIGHTLY_UPDATE_URL = "https://raw.githubusercontent.com/m24ih/nothing-essential-sync/main/update-nightly.json";
 let pendingUpdate = null;
@@ -394,13 +460,13 @@ if (checkUpdateBtn) {
         const targetUrl = channel === "nightly" ? NIGHTLY_UPDATE_URL : STABLE_UPDATE_URL;
 
         try {
-            // Android WebView CORS engeline takılmamak için doğrudan Root Shell (curl/wget) üzerinden çekiyoruz
+            // Fetch via root shell (curl/wget) to bypass Android WebView CORS limitations
             let rawJson = "";
             const shellRes = await exec(`curl -sL --connect-timeout 8 -H "Cache-Control: no-cache" "${targetUrl}" 2>/dev/null || wget -q -O - "${targetUrl}" 2>/dev/null`);
             if (shellRes.stdout && shellRes.stdout.trim().startsWith("{")) {
                 rawJson = shellRes.stdout.trim();
             } else {
-                // Fallback: tarayıcı fetch denemesi
+                // Fallback: browser fetch attempt
                 try {
                     const fetchRes = await fetch(`${targetUrl}?t=${Date.now()}`);
                     if (fetchRes.ok) {
@@ -469,7 +535,7 @@ if [ ! -f "$TMP_ZIP" ] || [ ! -s "$TMP_ZIP" ]; then
     exit 1
 fi
 
-# 1. Root manager üzerinden resmi kurulum
+# 1. Official installation via root manager
 if command -v ksud >/dev/null 2>&1; then
     ksud module install "$TMP_ZIP"
 elif [ -f "/data/adb/ksu/bin/ksud" ]; then
@@ -480,7 +546,7 @@ elif command -v magisk >/dev/null 2>&1; then
     magisk --install-module "$TMP_ZIP"
 fi
 
-# 2. Canlı Hot-Reload (Cihazı yeniden başlatmadan anında geçerli kılma)
+# 2. Live Hot-Reload (apply immediately without device reboot)
 MOD_DIR="/data/adb/modules/nothing-essential-sync"
 UPDATE_DIR="/data/adb/modules_update/nothing-essential-sync"
 if [ -d "$UPDATE_DIR" ]; then
@@ -490,7 +556,7 @@ cp -f "$MOD_DIR/sync.sh" /data/adb/essential-sync/sync.sh 2>/dev/null
 chmod 755 /data/adb/essential-sync/sync.sh "$MOD_DIR/sync.sh" 2>/dev/null
 chmod -R 644 "$MOD_DIR/webroot/"* 2>/dev/null
 
-# 3. Arka plan servisini anında canlandır
+# 3. Revive background service immediately
 pkill -f "inotifyd.*ntessentialspace" 2>/dev/null
 if [ -f "$MOD_DIR/service.sh" ]; then
     sh "$MOD_DIR/service.sh" >/dev/null 2>&1 &
@@ -537,5 +603,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     refreshDashboard();
     loadConfig();
     scanVaults();
+    startStatusPolling();
 });
 

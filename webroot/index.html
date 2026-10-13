@@ -15,10 +15,11 @@
                 <h1 class="ndot-title">ESSENTIAL SYNC</h1>
             </div>
             <div class="header-right">
+                <div id="status-badge" class="status-badge status-idle">Idle</div>
                 <button id="btn-theme-toggle" class="theme-toggle-btn" title="Toggle theme (System / Light / Dark)">
                     <span id="theme-icon">◐</span>
                 </button>
-                <span class="version-tag">v1.2.2</span>
+                <span class="version-tag">v1.2.3</span>
             </div>
         </header>
 
@@ -103,8 +104,8 @@
                 <div class="form-group">
                     <label for="select-lang">NOTE LANGUAGE</label>
                     <select id="select-lang" class="input-select">
+                        <option value="en" selected>English (Default - AI Summary, Note, Screenshot)</option>
                         <option value="auto">System Language (Auto-Detect)</option>
-                        <option value="en">English (AI Summary, Note, Screenshot)</option>
                         <option value="tr">Türkçe (AI Özeti, Not, Ekran Görüntüsü)</option>
                         <option value="de">Deutsch (KI-Zusammenfassung, Notiz)</option>
                         <option value="fr">Français (Résumé IA, Note)</option>
@@ -153,7 +154,7 @@
             <div class="card" style="margin-top: 16px;">
                 <div class="card-header">
                     <span class="card-label">SOFTWARE UPDATE</span>
-                    <span id="update-status-badge" class="badge">v1.2.2</span>
+                    <span id="update-status-badge" class="badge">v1.2.3</span>
                 </div>
                 <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;" id="update-info-text">
                     KernelSU auto-update enabled. Check GitHub for releases.
