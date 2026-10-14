@@ -1,5 +1,11 @@
 # Nothing Essential Space to Obsidian Sync
 
+> [!CAUTION]
+> ### ⚠️ Disclaimer & Privacy Notice
+> - **Independent Project:** This is an independent open-source tool developed solely for personal workflow needs, educational exploration, and software interoperability. It is **not** affiliated with, endorsed by, maintained by, or associated with **Nothing Technology Limited** in any way. "Nothing", "Nothing OS", and "Essential Space" are registered trademarks of Nothing Technology Limited.
+> - **Use at Your Own Risk:** This software is provided "AS IS", without warranty of any kind, express or implied. Root access carries inherent system responsibilities. Use this module entirely at your own risk. The author accepts no liability or responsibility for any data loss, system instability, or unintended consequences.
+> - **100% On-Device & Zero Cloud (Privacy-First):** All processing and synchronization occurs **strictly locally on your device**. No notes, voice recordings, screenshots, metadata, or telemetry are ever transmitted outside your device. No third-party servers, external cloud services, or remote APIs are used.
+
 An ultra-lightweight, zero-battery, event-driven bridge for **Nothing OS** that seamlessly syncs quick captures, voice notes, screenshots, and AI summaries from **Essential Space** into **Obsidian** (or any Markdown vault) with a native Nothing-style WebUI.
 
 ---
